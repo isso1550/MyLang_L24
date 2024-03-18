@@ -28,11 +28,13 @@ class ListenerInterp(ExprListener):
         dtype = ctx.getChild(0).getText()
         vname = ctx.getChild(1).getText()
         val = None
+        print(f"Declared variable {vname} of type {dtype} with value {val}")
+        self.txt += self.generator.generateDeclaration(dtype, vname)
         if (ctx.getChildCount() > 2):
             #Declaration with assignment
             val = ctx.getChild(3).getText()
-        print(f"Declared variable {vname} of type {dtype} with value {val}")
-        self.txt += self.generator.generateDeclaration(dtype, vname, val)
+            self.txt += self.generator.generateAssignment(vname)
+        
     
     def exitAssignment(self, ctx: ExprParser.AssignmentContext):
         vname = ctx.getChild(0).getText()
@@ -61,6 +63,9 @@ class ListenerInterp(ExprListener):
         self.generator.pushValToStack(val, dtype)
 
     def exitExpression(self, ctx: ExprParser.ExpressionContext):
+        pass
+
+    def exitExpr0(self, ctx: ExprParser.Expr0Context):
         if (ctx.getChildCount() > 1):
             if (ctx.getChild(0).getText() == '('):
                 #If parathesis - just skip, the expression will auto-evaluate later
@@ -81,9 +86,6 @@ class ListenerInterp(ExprListener):
         else:
 
             pass
-
-    def exitExpr0(self, ctx: ExprParser.Expr0Context):
-        return self.exitExpression(ctx)
     
     def exitExpr1(self, ctx: ExprParser.Expr1Context):
-        return self.exitExpression(ctx)
+        return self.exitExpr0(ctx)

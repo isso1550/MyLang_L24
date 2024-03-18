@@ -2,7 +2,7 @@
 
 int main() {
   int x=5;
-  printf("\n%d",x);
-  double y=5;
-  printf("\n%f",y);
+  int a=2;
+  int c=a>x;
+  printf("%d",c);
 }

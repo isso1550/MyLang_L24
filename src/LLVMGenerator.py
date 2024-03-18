@@ -21,7 +21,7 @@ class LLVMGenerator:
         txt += "define dso_local i32 @main() #0 {\n"
         return txt
 
-    def generateDeclaration(self, dtype, vname, val):
+    def generateDeclaration(self, dtype, vname):
         #Verify
         if (dtype == 'int'):
             dtype = 'i32'
@@ -34,9 +34,9 @@ class LLVMGenerator:
 
         self.varData[vname] = {"dtype":dtype, "reg":regc, "init":False}
         txt = f"\t{regc} = alloca {dtype}\n"
-        if val != None:
-            txt += f"\tstore {dtype} {val}, ptr {regc}\n"
-            self.varData[vname]['init'] = True
+        #if val != None:
+        #    txt += f"\tstore {dtype} {val}, ptr {regc}\n"
+        #    self.varData[vname]['init'] = True
         return txt
 
     def generateAssignment(self, vname):
