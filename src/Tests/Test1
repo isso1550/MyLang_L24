@@ -1,0 +1,14 @@
+int x=5;
+int y=1;
+y=(6+5)*3+9*(2+1);
+print(y);
+
+int a=2;
+a=5*a+2+3*(2+3);
+print(a);
+
+int b;
+b = (2+3)*(3+2);
+print(b);
+
+print(3*y);
