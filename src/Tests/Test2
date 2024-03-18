@@ -1,0 +1,11 @@
+int a;
+a = 5;
+print(a);
+a = 6;
+print(a);
+a = 7*3;
+print(a);
+a = 1;
+print(a);
+
+int b=(6*7)+2*(5+3)+(2)
