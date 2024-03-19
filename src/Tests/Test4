@@ -1,0 +1,24 @@
+bool a;
+a = ~true | ~true;
+print(~a);
+
+a = ~true | (~false ^ ~true) & true;
+print(a);
+
+a = (~false & ~a) ^ a;
+print(a);
+
+a = (~false & ~a) ^ ~a;
+print(~a);
+
+int b = 5;
+int c = 4;
+
+a = (b > c) & (c+1 >= b) & (c+3>b);
+print(a);
+
+a = 2*c+b == 13;
+print(a);
+
+a = (2*b+c*3) == 22 & (true | false);
+print(a);

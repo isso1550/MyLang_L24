@@ -1,8 +1,6 @@
 #include <stdio.h>
-
+#include <stdbool.h>
 int main() {
-  int x=5;
-  int a=2;
-  int c=a>x;
-  printf("%d",c);
+  bool a = true;
+  bool c = ~a;
 }

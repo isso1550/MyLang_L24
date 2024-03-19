@@ -1,0 +1,28 @@
+bool a;
+a = true ^ true;
+print(a);
+a = true ^ false;
+print(a);
+a = false ^ true;
+print(a);
+a = false ^ false;
+print(a);
+
+
+a = true & true;
+print(a);
+a = true & false;
+print(a);
+a = false & true;
+print(a);
+a = false & false;
+print(a);
+
+a = true | true;
+print(a);
+a = true | false;
+print(a);
+a = false | true;
+print(a);
+a = false | false;
+print(a);

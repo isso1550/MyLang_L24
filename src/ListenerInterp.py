@@ -62,11 +62,22 @@ class ListenerInterp(ExprListener):
         dtype = 'i32'
         self.generator.pushValToStack(val, dtype)
 
+    def exitValue_bool(self, ctx: ExprParser.Value_boolContext):
+        val = ctx.getText()
+        dtype = 'i1'
+        val = 1 if val=='true' else 0
+        self.generator.pushValToStack(val, dtype)
+
+    def exitValue_negation(self, ctx: ExprParser.Value_negationContext):
+        txt = self.generator.generateNegation()
+        self.txt += txt
+    
+
     def exitExpression(self, ctx: ExprParser.ExpressionContext):
         pass
 
     def exitExpr0(self, ctx: ExprParser.Expr0Context):
-        if (ctx.getChildCount() > 1):
+        if (ctx.getChildCount() > 2):
             if (ctx.getChild(0).getText() == '('):
                 #If parathesis - just skip, the expression will auto-evaluate later
                 return
@@ -81,8 +92,21 @@ class ListenerInterp(ExprListener):
                     print(f"Found multiply operation {op}")
                     txt = self.generator.generateMultiply()
                     self.txt += txt
+                case '==' | '>' | '>=' | '<' | '<=' | '!=':
+                    print(f"Found compare {op}")
+                    txt = self.generator.generateCompare(op)
+                    self.txt += txt
+                case '|' | '&' | '^':
+                    print(f"Found bool binary operator {op}")
+                    txt = self.generator.generateBoolBinary(op)
+                    self.txt += txt
                 case _:
-                    raise Exception("Unknown operation")
+                    raise Exception(f"Unknown operation {op}")
+        elif (ctx.getChildCount() > 1):
+            if (ctx.getChild(0).getText() != '~'):
+                raise Exception(f"Unknown situation {ctx.getText()}")
+            txt = self.generator.generateNegation()
+            self.txt += txt
         else:
 
             pass

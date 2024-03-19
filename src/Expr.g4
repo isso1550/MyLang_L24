@@ -27,8 +27,10 @@ print:
     ;
 
 value:
-    INT     #value_int
+    '~' value #value_negation
+    | INT     #value_int
     | ID    #value_id
+    | bool  #value_bool
     ;
     
 expression:
@@ -36,10 +38,12 @@ expression:
     | expr0
     ;
     
-    
 expr0 :
-    expr1 '+' expr0
+    expr0 ('==' | '>' | '<' | '>=' | '<=' | '!=') expr1
+    | expr0 '+' expr1
+    | expr0 ('|'| '&'| '^') expr1
     | value
+    | '~' expr0
     | expr1
     ;
     
@@ -51,8 +55,13 @@ expr1 :
     
 type:
     'int'
+    | 'bool'
     ;
     
+bool:
+    'true'
+    | 'false'
+    ;
     
 AND : 'and' ;
 OR : 'or' ;
@@ -65,6 +74,6 @@ RPAREN : ')' ;
 LCURLY : '{' ;
 RCURLY : '}' ;
 
-INT : [0-9]+ ;
+INT : [-]?[0-9]+ ;
 ID: [a-zA-Z_][a-zA-Z_0-9]* ;
 WS: [ \t\n\r\f]+ -> skip ;
