@@ -10,12 +10,21 @@ class ListenerInterp(ExprListener):
     def __init__(self):
         self.generator = LLVMGenerator()
         self.txt = ""
+        self.pre_main_txt = ""
+        self.func_depth = 0
         self.result = {}
 
         self.exprStack = deque() 
 
+    def appendText(self, txt, append_to_premain=False):
+        if (self.func_depth > 0) | (append_to_premain):
+            self.pre_main_txt += txt
+        else:
+            self.txt += txt
+
     def exitProgram(self, ctx: ExprParser.ProgramContext):
-        self.txt = self.generator.generateHeader() + self.txt + self.generator.generateFooter()
+        header, main_start = self.generator.generateHeader()
+        self.txt = header + self.pre_main_txt + main_start + self.txt + self.generator.generateFooter()
         print('_____PROGRAM_____')
         print(self.txt)
 
@@ -23,39 +32,56 @@ class ListenerInterp(ExprListener):
             f.write(self.txt)
             f.close()
         
-
+    """
     def exitDeclaration(self, ctx: ExprParser.DeclarationContext):
         dtype = ctx.getChild(0).getText()
         vname = ctx.getChild(1).getText()
         val = None
-        print(f"Declared variable {vname} of type {dtype} with value {val}")
-        self.txt += self.generator.generateDeclaration(dtype, vname)
+        txt = self.generator.generateDeclaration(dtype, vname)
+        self.appendText(txt)
         if (ctx.getChildCount() > 2):
             #Declaration with assignment
             val = ctx.getChild(3).getText()
-            self.txt += self.generator.generateAssignment(vname)
-        
+            txt = self.generator.generateAssignment(vname)
+            self.appendText(txt)
+    """       
+ 
+    def exitDeclaration_no_assign(self, ctx: ExprParser.Declaration_no_assignContext):
+        if (type(ctx.getChild(0)) == ExprParser.GlobalContext):
+            dtype = ctx.getChild(1).getText()
+            vname = ctx.getChild(2).getText()
+            txt = self.generator.generateDeclaration(dtype, vname, g=True)
+            self.appendText(txt, append_to_premain=True)
+        else:
+            dtype = ctx.getChild(0).getText()
+            vname = ctx.getChild(1).getText()
+            txt = self.generator.generateDeclaration(dtype, vname)
+            self.appendText(txt)
+        return vname
+
+    def exitDeclaration_assign(self, ctx: ExprParser.Declaration_assignContext):
+        vname = self.exitDeclaration_no_assign(ctx)
+        txt = self.generator.generateAssignment(vname)
+        self.appendText(txt)
     
     def exitAssignment(self, ctx: ExprParser.AssignmentContext):
         vname = ctx.getChild(0).getText()
         val = ctx.getChild(2).getText()
-        print(f"Assigning value {val} to variable {vname}")
-        self.txt += self.generator.generateAssignment(vname)
+        txt = self.generator.generateAssignment(vname)
+        self.appendText(txt)
 
     def exitPrint(self, ctx: ExprParser.PrintContext):
         child = ctx.getChild(2)
         val = child.getText()
 
         txt = self.generator.generatePrint()
-        self.txt += txt
-        print(f"Printing {val}")
+        self.appendText(txt)
     
 
     def exitValue_id(self, ctx: ExprParser.Value_idContext):
         vname = ctx.getText()
         txt = self.generator.generateLoadVar(vname)
-        print(f"Loading value for value_id {vname}")
-        self.txt += txt
+        self.appendText(txt)
 
     def exitValue_int(self, ctx: ExprParser.Value_intContext):
         val = ctx.getText()
@@ -70,7 +96,7 @@ class ListenerInterp(ExprListener):
 
     def exitValue_negation(self, ctx: ExprParser.Value_negationContext):
         txt = self.generator.generateNegation()
-        self.txt += txt
+        self.appendText(txt)
     
 
     def exitExpression(self, ctx: ExprParser.ExpressionContext):
@@ -85,31 +111,88 @@ class ListenerInterp(ExprListener):
             op = ctx.getChild(1).getText()
             match op:
                 case '+':
-                    print(f"Found addition operation {op}")
                     txt = self.generator.generateAddition()
-                    self.txt += txt
                 case '*':
-                    print(f"Found multiply operation {op}")
                     txt = self.generator.generateMultiply()
-                    self.txt += txt
                 case '==' | '>' | '>=' | '<' | '<=' | '!=':
-                    print(f"Found compare {op}")
                     txt = self.generator.generateCompare(op)
-                    self.txt += txt
                 case '|' | '&' | '^':
-                    print(f"Found bool binary operator {op}")
                     txt = self.generator.generateBoolBinary(op)
-                    self.txt += txt
                 case _:
                     raise Exception(f"Unknown operation {op}")
+            self.appendText(txt)
         elif (ctx.getChildCount() > 1):
             if (ctx.getChild(0).getText() != '~'):
                 raise Exception(f"Unknown situation {ctx.getText()}")
             txt = self.generator.generateNegation()
-            self.txt += txt
+            self.appendText(txt)
         else:
-
             pass
     
     def exitExpr1(self, ctx: ExprParser.Expr1Context):
         return self.exitExpr0(ctx)
+    def exitExpr2(self, ctx: ExprParser.Expr2Context):
+        return self.exitExpr0(ctx)
+
+
+    def enterFunction_definition(self, ctx: ExprParser.Function_definitionContext):
+        self.func_depth += 1
+        rettype = ctx.getChild(1).getText()
+        fname = ctx.getChild(2).getText()
+        txt = self.generator.generateEnterFunctionDefinition(rettype, fname)
+        self.appendText(txt)
+
+    def enterFunc_def_with_args(self, ctx: ExprParser.Func_def_with_argsContext):
+        return self.enterFunction_definition(ctx)
+    def enterFunc_def_no_args(self, ctx: ExprParser.Func_def_no_argsContext):
+        self.func_depth += 1
+        rettype = ctx.getChild(1).getText()
+        fname = ctx.getChild(2).getText()
+        txt = self.generator.generateEnterFunctionDefinitionNoArgs(rettype, fname)
+        self.appendText(txt)
+
+    def exitFunc_arg(self, ctx: ExprParser.Func_argContext):
+        dtype = ctx.getChild(0).getText()
+        vname = ctx.getChild(1).getText()
+        self.generator.generateFunctionArgument(dtype, vname)
+
+    def exitFunc_args(self, ctx: ExprParser.Func_argsContext):
+        txt = self.generator.generateExitFunctionDefinition()
+        self.appendText(txt)
+        
+        
+    def exitFunction_definition(self, ctx: ExprParser.Function_definitionContext):
+        txt = self.generator.exitFunctionDeclaration()
+        txt += "\n}\n"
+        self.appendText(txt)
+        self.func_depth -= 1
+
+    def exitFunc_def_with_args(self, ctx: ExprParser.Func_def_with_argsContext):
+        return self.exitFunction_definition(ctx)
+    def exitFunc_def_no_args(self, ctx: ExprParser.Func_def_no_argsContext):
+        return self.exitFunction_definition(ctx)
+    
+    
+
+    def exitReturn(self, ctx: ExprParser.ReturnContext):
+        txt = self.generator.generateReturn()
+        self.appendText(txt)
+
+    def enterCall(self, ctx: ExprParser.CallContext):
+        self.generator.generateEnterCall(ctx.getChild(0).getText())
+
+    def exitCall(self, ctx: ExprParser.CallContext):
+        txt = self.generator.generateExitCall()
+        self.appendText(txt)
+
+    def exitCall_arg(self, ctx: ExprParser.Call_argsContext):
+        self.generator.generateCallArg()
+
+    def enterLine(self, ctx: ExprParser.LineContext):
+        self.generator.incLine(ctx.start.line)
+
+    def enterGlobal_declaration_error(self, ctx: ExprParser.Global_declaration_errorContext):
+        self.generator.raiseException(f"Global variable declaration without type {ctx.getChild(1).getText()}")
+    def enterError_func_def_no_type(self, ctx: ExprParser.Error_func_def_no_typeContext):
+        self.generator.raiseException(f"Function {ctx.getChild(1).getText()} error missing return type")
+    

@@ -1,0 +1,13 @@
+global int b = 3;
+
+function int addtob(int a){
+    return b + a;
+}
+
+int a = addtob(5);
+print(a==8);
+a = addtob(a);
+print(a==11);
+a = addtob(addtob(a+5*2));
+print(a);
+print(a == 3+3+11+5*2);

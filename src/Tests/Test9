@@ -1,0 +1,3 @@
+bool a;
+a = (3<5*32+(6*1) | false);
+print(a);

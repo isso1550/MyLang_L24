@@ -5,17 +5,72 @@ program :
     ;
 
 lines: 
-    line ';' lines?
+    line lines?
     ;
 
 line: 
-    declaration
-    | assignment
-    | print
+    declaration ';'
+    | function_definition
+    | assignment ';'
+    | print ';'
+    | expression ';'
+    | return ';'
+    | call ';'
+    ;
+    
+global:
+    'global'
+    ;
+    
+call:
+    ID LPAREN call_args? RPAREN
+    ;
+    
+call_args:
+    call_arg ',' call_args
+    | call_arg
+    ;
+
+call_arg:
+    expression
+    ;
+    
+return:
+    'return' expression
+    ;
+    
+function_definition:
+    'function' type ID
+    LPAREN func_args
+    RPAREN '{' block '}' #func_def_with_args
+    | 'function' type ID LPAREN 
+    RPAREN '{' block '}' #func_def_no_args
+    | 'function' ID LPAREN func_args? RPAREN
+    '{' block '}' #error_func_def_no_type
+    ;
+
+func_args:
+    func_arg ',' func_args1
+    | func_arg
+    ;
+    
+func_args1:
+    func_arg ',' func_args1
+    | func_arg
+    ;
+    
+func_arg:
+    type ID
+    ;
+    
+block:
+    lines
     ;
 
 declaration:
-    type ID ('=' expression)?
+    global? type ID #declaration_no_assign
+    | global? type ID ('=' expression)? #declaration_assign //nadmiarowy '?' ?
+    | global ID ('=' expression)? #global_declaration_error
     ;
     
 assignment:
@@ -37,22 +92,30 @@ expression:
     value
     | expr0
     ;
-    
-expr0 :
-    expr0 ('==' | '>' | '<' | '>=' | '<=' | '!=') expr1
-    | expr0 '+' expr1
-    | expr0 ('|'| '&'| '^') expr1
+expr0:
+    expr0 ('==' | '>' | '<' | '>=' |
+    '<=' | '!=') expr0
+    | expr0 ('|'| '&'| '^') expr0
     | value
-    | '~' expr0
+    | call
     | expr1
+    | expr2
     ;
     
 expr1 :
-    expr1 '*' expr1
-    | LPAREN expr0 RPAREN
+     expr1 '+' expr1
     | value
+    | call
+    | '~' expr1
+    | expr2
     ;
     
+expr2 :
+    expr2 '*' expr2
+    | LPAREN expr0 RPAREN
+    | value
+    | call
+    ;
 type:
     'int'
     | 'bool'

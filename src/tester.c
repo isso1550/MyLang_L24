@@ -1,6 +1,9 @@
 #include <stdio.h>
-#include <stdbool.h>
+ 
+int x; // global variable
 int main() {
-  bool a = true;
-  bool c = ~a;
+ 
+    int y = 10; // local variable
+    x = x +2;
+    return 0;
 }

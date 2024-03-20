@@ -2,51 +2,104 @@ from collections import deque
 
 class LLVMGenerator:
     def __init__(self):
-        self.varData = {}
-        self.regc = 1
+        #Storage for information about variables
+        #Array to allow use of same name local vars in different functions
+        #Array of lists, varData[x][y] x - func depth y - variable
+        self.varData = [{}]
 
+        #Local tmp label counter
+        #Array to allow use in functions, regc[x][y] x - func depth y - current label
+        self.regc = [1]
+
+        #Stack for expression evaluations -> evaluate most important part, put to stack, continue
+        #Also used for loading values before calls etc...
         self.regStack = deque()
-        pass
+
+        #storage for information about function arguments in its declaration
+        #Necessary because correct declarations and assignments ought to be added to the beginning of func block
+        self.funcArgsStack = deque()
+
+        #storage for information about called functions, using stack to allow calls within calls (Test7, Test8)
+        self.callStack = deque()
+
+        #storage for info about functions
+        self.funcData = {}
+
+        #information which function is currently analyzed to get its data and print errors
+        self.analyzedFunc = None 
+        
+        #Indicates function depth 0 if parsed lines in main, 1 if lines in func definition
+        #Nested functions not allowed!
+        self.func_depth = 0
+
+        #Line counter for exception messages
+        self.lc = 0
+        
+    
+    def incLine(self, lc):
+        self.lc = lc
 
     def nextReg(self):
-        regc = self.regc
-        self.regc += 1
+        regc = self.regc[self.func_depth]
+        self.regc[self.func_depth] += 1
         return '%'+ str(regc)
     
+    def raiseException(self, message):
+        raise Exception(message + f" : {self.lc}")
 
     def generateHeader(self):
         txt = "target triple = \"x86_64-w64-windows-gnu\"\n"
         txt += "@.str = private unnamed_addr constant [4 x i8] c\"\\0A%d\\00\", align 1\n"
         txt += "declare dso_local i32 @printf(ptr noundef, ...) #1\n"
-        txt += "define dso_local i32 @main() #0 {\n"
-        return txt
+        main_start = "define dso_local i32 @main() #0 {\n"
+        return txt, main_start
 
-    def generateDeclaration(self, dtype, vname):
+    def generateDeclaration(self, dtype, vname, g=False, gval=None):
         #Verify
-        if (dtype == 'int'):
-            dtype = 'i32'
-        elif (dtype == 'bool'):
-            dtype = 'i1'
-        else:
-            raise Exception(f"Unknown var type {dtype}")
-        if vname in self.varData.keys():
+        match dtype:
+            case 'int' | 'i32':
+                dtype = 'i32'
+            case 'bool' | 'i1':
+                dtype = 'i1'
+            case _:
+                raise Exception(f"Unknown var type {dtype}")
+            
+        if vname in self.varData[self.func_depth].keys():
             raise Exception(f"Already declared {vname}")
         #Add
-        regc = self.nextReg()
-
-        self.varData[vname] = {"dtype":dtype, "reg":regc, "init":False}
-        txt = f"\t{regc} = alloca {dtype}\n"
-        #if val != None:
-        #    txt += f"\tstore {dtype} {val}, ptr {regc}\n"
-        #    self.varData[vname]['init'] = True
+        
+        if (g):
+            print(f"TEST {vname} {self.func_depth}")
+            if self.func_depth > 0:
+                raise Exception(f"Cannot declare global variable {vname} inside a function: {self.lc}")
+            #@x = dso_local global i32 0, align 4
+            regc = '@' + vname
+            gval = 0 if gval==None else gval
+            txt = f"{regc} = dso_local global {dtype} {gval}\n"
+            self.varData[0][vname] = {"dtype":dtype, "reg":regc, "init":False, "global":g}
+        else:
+            regc = self.nextReg()
+            txt = f"\t{regc} = alloca {dtype}\n"
+            self.varData[self.func_depth][vname] = {"dtype":dtype, "reg":regc, "init":False, "global":g}
         return txt
 
     def generateAssignment(self, vname):
-        data = self.varData[vname]
+        try:
+            data = self.varData[self.func_depth][vname]
+        except:
+            try:
+                data = self.varData[0][vname]
+                if data['global']==False:
+                    raise Exception(f"Assignment error")
+            except:
+                raise Exception(f"Assignment error")
         dtype = data['dtype']
         varreg = data['reg']
 
-        (dtype, reg) = self.regStack.pop()
+        (dtype1, reg) = self.regStack.pop()
+
+        if (dtype != dtype1):
+            raise Exception(f"Cannot assign {dtype1} to {dtype} {vname}: {self.lc}")
 
         txt = f"\tstore {dtype} {reg}, ptr {varreg}\n"
         data['init'] = True
@@ -55,18 +108,27 @@ class LLVMGenerator:
 
     def generateLoadVar(self, vname):
         regc = self.nextReg()
-        
-        data = self.varData[vname]
+
+        try:
+            data = self.varData[self.func_depth][vname]
+        except: 
+            try:
+                data = self.varData[0][vname]
+                if data['global']==False:
+                    raise Exception(f"Unknown variable {vname}: {self.lc}")
+            except:
+                raise Exception(f"Unknown variable {vname}")
         dtype = data['dtype']
         varreg = data['reg']
         varinit = data['init']
+        g = data['global']
         
         if not varinit:
-            raise Exception(f"Trying to load uninitialized variable {vname}")
+            raise Exception(f"Trying to load uninitialized variable {vname}: {self.lc}")
 
         txt = f"\t{regc} = load {dtype}, ptr {varreg}\n"
 
-        print(f"    Pushing {(dtype, regc)} to stack")
+        #print(f"    Pushing {(dtype, regc)} to stack")
         self.regStack.append((dtype,regc))
 
         return txt
@@ -81,7 +143,7 @@ class LLVMGenerator:
     def generatePrint(self):
         regc = self.nextReg()
         (dtype,reg) = self.regStack.pop()
-        print(f"    print: Grabbing {(dtype, reg)} from stack")
+        #print(f"    print: Grabbing {(dtype, reg)} from stack")
         match(dtype):
             case 'i32':
                 txt = f"\t{regc} = call i32 (ptr, ...) @printf(ptr noundef @.str, {dtype} noundef {reg})\n"
@@ -103,7 +165,7 @@ class LLVMGenerator:
         return txt
     
     def pushValToStack(self, val, dtype):
-        print(f'    Pushing pure value to stack {val}')
+        #print(f'    Pushing pure value to stack {val}')
         self.regStack.append((dtype, val))
 
     def prepareExpressionEvaluation(self, op=""):
@@ -112,7 +174,7 @@ class LLVMGenerator:
         dtype1, regc1 = self.regStack.pop()
 
         if dtype1 != dtype2:
-            raise Exception(f"Cannot perform operation '{op}' on different types {dtype1} {dtype2}")
+            raise Exception(f"Cannot perform operation '{op}' on different types {dtype1} {dtype2}: {self.lc}")
 
         return regc, dtype2, regc2, dtype1, regc1   
 
@@ -121,7 +183,7 @@ class LLVMGenerator:
         regc, dtype2, regc2, dtype1, regc1  = self.prepareExpressionEvaluation()
         
         txt = f"\t{regc} = add nsw i32 {regc1}, {regc2}\n"
-        print(f"    Pushing addition result to stack")
+        #print(f"    Pushing addition result to stack")
         self.regStack.append((dtype1, regc))
         return txt
     
@@ -130,7 +192,7 @@ class LLVMGenerator:
         regc, dtype2, regc2, dtype1, regc1  = self.prepareExpressionEvaluation()
         
         txt = f"\t{regc} = mul nsw i32 {regc1}, {regc2}\n"
-        print(f"    Pushing addition result to stack")
+        #print(f"    Pushing addition result to stack")
         self.regStack.append((dtype1, regc))
         return txt
     
@@ -222,3 +284,143 @@ class LLVMGenerator:
         txt = f"\t{regc} = add nsw i1 {regc1}, 1\n"
         self.regStack.append((dtype1, regc))
         return txt
+    
+    def generateEnterFunctionDefinition(self, rettype, fname):
+        #Entering function definition (name, args...)
+        #define dso_local i32 @fun(i32 noundef %0, i32 noundef %1) #0 {
+        #}
+
+        if self.func_depth > 0:
+            raise Exception(f"Cannot create nested functions: {fname}")
+
+        match rettype:
+            case 'int':
+                rettype = 'i32'
+            case 'bool':
+                rettype = 'i1'
+            case _:
+                raise Exception(f"Unknown return type for function {fname} : {rettype}")
+
+        txt = f"define dso_local {rettype} @{fname}("
+
+        self.func_depth += 1
+        if (len(self.varData) <= self.func_depth):
+            self.varData.append({})
+        else:
+            self.varData[self.func_depth] = {}
+
+        if (len(self.regc) <= self.func_depth):
+            self.regc.append(0)
+        else:
+            self.regc[self.func_depth] = 0
+
+        self.funcData[fname] = {"rettype" : rettype, "argtypes":[]}
+        self.analyzedFunc = fname
+
+        self.func_arg_list = []
+        return txt
+    
+    def generateEnterFunctionDefinitionNoArgs(self, rettype, fname):
+        #Enter function definition (special case with 0 args)
+        txt = self.generateEnterFunctionDefinition(rettype, fname)
+        txt += f") {'{'}\n"
+
+        self.nextReg() #Artificialy increase next temp reg to %1
+        return txt
+
+    def generateFunctionArgument(self, dtype, vname):
+        #Add function argument declaration to stack and log
+        #Verify
+        if (dtype == 'int'):
+            dtype = 'i32'
+        elif (dtype == 'bool'):
+            dtype = 'i1'
+        else:
+            raise Exception(f"Unknown var type {dtype}")
+        if vname in self.varData[self.func_depth].keys():
+            raise Exception(f"Already declared {vname}")
+        #Add
+        regc = self.nextReg()
+
+        
+        txt = f"{dtype} noundef {regc}"
+        self.func_arg_list.append(txt)
+
+        self.funcData[self.analyzedFunc]['argtypes'].append(dtype)
+        self.funcArgsStack.append((dtype, vname, regc))
+        #return txt
+    
+    def generateExitFunctionDefinition(self):
+        #Exiting function definition (first line with name, args...)
+        txt = ', '.join(self.func_arg_list)
+        txt += f") {'{'}\n"
+        self.nextReg()
+        while (self.funcArgsStack):
+            dtype, vname, regc = self.funcArgsStack.pop()
+            self.regStack.append((dtype, regc))
+            txt += self.generateDeclaration(dtype, vname)
+            txt += self.generateAssignment(vname)
+        self.func_arg_list = []
+        return txt
+    
+    
+
+    def exitFunctionDeclaration(self):
+        #Exiting ENTIRE function declaration
+        dtype = self.funcData[self.analyzedFunc]['rettype']
+        txt = f'\n\tret {dtype} 0'
+        self.func_depth -= 1
+        return txt
+
+    def generateReturn(self):
+        (dtype, reg) = self.regStack.pop()
+        expected_ret = self.funcData[self.analyzedFunc]['rettype']
+
+        if (dtype != expected_ret):
+            raise Exception("Function must return type of its declaration")
+        
+        txt = f'\tret {dtype} {reg}'
+        return txt
+    
+    def generateEnterCall(self, fname):
+        #call i32 @fun(i32 noundef 1, i32 noundef 2)
+        #Prepare to handle call
+        self.callStack.append((0, fname, []))
+        #call_arg_n, calledFunc, call_arg_list = self.callStack.pop()
+
+    def generateCallArg(self):
+        dtype, reg = self.regStack.pop()
+        call_arg_n, calledFunc, call_arg_list = self.callStack.pop()
+        try:
+            expected_type = self.funcData[calledFunc]['argtypes'][call_arg_n]
+        except IndexError as e:
+            raise Exception(f"Passed too many arguments to {calledFunc}: {self.lc}")
+        call_arg_n += 1
+        if (dtype != expected_type):
+            raise Exception(f"Wrong argument type {dtype} expected {expected_type} function {calledFunc}: {self.lc}")
+        txt = f"{dtype} {reg}"
+        print(f"Found call arg {txt}")
+
+        
+        call_arg_list.append(txt)
+        self.callStack.append((call_arg_n, calledFunc, call_arg_list))
+
+    def generateExitCall(self):
+        call_arg_n, calledFunc, call_arg_list = self.callStack.pop()
+        #Start
+        fname = calledFunc
+        try:
+            data = self.funcData[fname]
+        except:
+            raise Exception(f"Unknown function {fname}: {self.lc}")
+        rettype = data['rettype']
+        regc = self.nextReg()
+        txt = f"\t{regc} = call {rettype} @{fname}("
+        self.regStack.append((rettype, regc))
+        #Args
+        txt += ', '.join(call_arg_list)
+        #End
+        txt += ')\n'
+        return txt
+
+

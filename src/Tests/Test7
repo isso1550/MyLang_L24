@@ -1,0 +1,33 @@
+function int suma (int x, int y) {
+    return x + y;
+}
+
+function int mnozenie (int x, int y){
+    return x*y;
+}
+
+function int weryfikacja (int a, int b, int c, int d, int e) {
+    print(a==10);
+    print(b==36);
+    print(c==10);
+    print(d==63);
+    print(e==24);
+}
+
+function int iloczyn_sum(int x, int y, int z, int v){
+    return mnozenie(suma(x,y), suma(z,v));
+}
+
+int a;
+a = suma(5,5);
+int b;
+b = suma(suma(a,2), (3*4)*2);
+int c;
+c = suma(suma(2,2), suma(2*2,2));
+int d;
+d = mnozenie(suma(2,5), 3+3+3);
+int e;
+e = iloczyn_sum(2,2,3,3);
+
+
+weryfikacja(a,b,c,d,e);
