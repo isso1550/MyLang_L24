@@ -6,6 +6,11 @@
 * 0.3 Functions!, args/no args, call within calls, no nested funcs allowed, calls as values, calls as args to calls, global variables, better exceptions, line counting for exceptions, expression level fixes in g4, tests
 * 0.4 If blocks, If_else blocks, While loops, double number type, handling number types, handling negative ints/doubles, nested loops, nested if_else blocks
 
+# TODO
+* tables / short circuit boolean
+* struct
+* read user input
+
 # General info
 * nested functions not allowed
 * expression eval order has to be checked with even more tests!
