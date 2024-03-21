@@ -1,7 +1,7 @@
 grammar Expr;
 
 program : 
-    lines
+    lines?
     ;
 
 lines: 

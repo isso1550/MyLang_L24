@@ -5,6 +5,8 @@
 * 0.2 Negative numbers (INT grammar), comparisons (>,<,<=,>=,==,!=), boolean type, bool operators(&,|,^,~), more tests, expression evaluation fixes (now same level expressions evaluated in order "as written"), basic type checking before operations, bool printing, universal "prepare evaluation" function, value negation when init
 * 0.3 Functions!, args/no args, call within calls, no nested funcs allowed, calls as values, calls as args to calls, global variables, better exceptions, line counting for exceptions, expression level fixes in g4, tests
 * 0.4 If blocks, If_else blocks, While loops, double number type, handling number types, handling negative ints/doubles, nested loops, nested if_else blocks
+    * 0.4.1
+        program: lines? => allows handling whitespace only input (instead of throwing random errors)
 
 # TODO
 * tables / short circuit boolean
