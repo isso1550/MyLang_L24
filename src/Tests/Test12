@@ -1,0 +1,21 @@
+function double f(double x) {
+    return 2*x*x - 2*x + 2;
+}
+
+double step = 0.0001;
+double lower = -5;
+double upper = 5;
+
+
+if (upper < lower){
+    print(-1);
+}
+
+double sum = 0;
+double x = lower;
+while (x <= upper){
+    sum = sum + f(x);
+    x = x + step;
+}
+sum = step * sum;
+print(sum);

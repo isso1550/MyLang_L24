@@ -10,10 +10,11 @@ def main(argv):
     stream = CommonTokenStream(lexer)
     parser = ExprParser(stream)
     tree = parser.program()
-    print(tree.toStringTree(recog=parser))
+    #print(tree.toStringTree(recog=parser))
     if parser.getNumberOfSyntaxErrors() > 0:
         print("syntax errors")
     else:
+        print("___________________________SUCCESFULLY GENERATED IR")
         linterp = ListenerInterp()
         walker = ParseTreeWalker()
         walker.walk(linterp, tree)

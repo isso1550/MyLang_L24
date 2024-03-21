@@ -25,8 +25,8 @@ class ListenerInterp(ExprListener):
     def exitProgram(self, ctx: ExprParser.ProgramContext):
         header, main_start = self.generator.generateHeader()
         self.txt = header + self.pre_main_txt + main_start + self.txt + self.generator.generateFooter()
-        print('_____PROGRAM_____')
-        print(self.txt)
+        #print('_____PROGRAM_____')
+        #print(self.txt)
 
         with open("myllvm.ll",'w') as f:
             f.write(self.txt)
@@ -85,8 +85,14 @@ class ListenerInterp(ExprListener):
 
     def exitValue_int(self, ctx: ExprParser.Value_intContext):
         val = ctx.getText()
-        dtype = 'i32'
+        dtype = 'number'
         self.generator.pushValToStack(val, dtype)
+
+    def exitValue_double(self, ctx: ExprParser.Value_doubleContext):
+        val = ctx.getText()
+        dtype = 'number'
+        self.generator.pushValToStack(val, dtype)
+
 
     def exitValue_bool(self, ctx: ExprParser.Value_boolContext):
         val = ctx.getText()
@@ -98,6 +104,12 @@ class ListenerInterp(ExprListener):
         txt = self.generator.generateNegation()
         self.appendText(txt)
     
+    def exitValue_negative(self, ctx: ExprParser.Value_negativeContext):
+        val = '-' + ctx.getChild(1).getText()
+        dtype = 'number'
+        self.generator.pushValToStack(val, dtype)
+        #self.generator.negativeValue()
+
 
     def exitExpression(self, ctx: ExprParser.ExpressionContext):
         pass
@@ -110,10 +122,8 @@ class ListenerInterp(ExprListener):
             #Calculations required
             op = ctx.getChild(1).getText()
             match op:
-                case '+':
-                    txt = self.generator.generateAddition()
-                case '*':
-                    txt = self.generator.generateMultiply()
+                case '+' | '-' | '*' | '/':
+                    txt = self.generator.generateCalculation(op)
                 case '==' | '>' | '>=' | '<' | '<=' | '!=':
                     txt = self.generator.generateCompare(op)
                 case '|' | '&' | '^':
@@ -196,3 +206,41 @@ class ListenerInterp(ExprListener):
     def enterError_func_def_no_type(self, ctx: ExprParser.Error_func_def_no_typeContext):
         self.generator.raiseException(f"Function {ctx.getChild(1).getText()} error missing return type")
     
+    def enterIfblock(self, ctx: ExprParser.IfblockContext):
+        txt = self.generator.generateEnterIf()
+        self.appendText(txt)
+    def exitIfblock(self, ctx: ExprParser.IfblockContext):
+        txt = self.generator.generateExitIfBlock()
+        self.appendText(txt)
+    
+    def enterElseblock(self, ctx: ExprParser.ElseblockContext):
+        txt = self.generator.generateEnterElseBlock()
+        self.appendText(txt)
+    def exitElseblock(self, ctx:ExprParser.ElseblockContext):
+        self.exitIfblock(ctx)
+
+
+    def enterIf_no_else(self, ctx: ExprParser.If_no_elseContext):
+        self.generator.enterIf(with_else=False)
+    def enterIf_else(self, ctx: ExprParser.If_elseContext):
+        self.generator.enterIf(with_else=True)
+
+    def exitIf_no_else(self, ctx: ExprParser.If_no_elseContext):
+        txt = self.generator.generateExitIf()
+        self.appendText(txt)
+    def exitIf_else(self, ctx: ExprParser.If_elseContext):
+        self.exitIf_no_else(ctx)
+    
+
+
+    def enterWhileloop(self, ctx: ExprParser.WhileloopContext):
+        txt = self.generator.generateEnterWhileLoop()
+        self.appendText(txt)
+
+    def enterWhileblock(self, ctx: ExprParser.WhileblockContext):
+        txt = self.generator.generateEnterWhileBlock()
+        self.appendText(txt)
+
+    def exitWhileblock(self, ctx: ExprParser.WhileblockContext):
+        txt = self.generator.generateExitWhileBlock()
+        self.appendText(txt)
