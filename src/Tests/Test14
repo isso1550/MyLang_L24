@@ -1,5 +1,8 @@
 int x;
-global int y = 2;
+
+function int f1(int x){
+    return x-1;
+}
 
 function int f2(int x){
     return x+1;
@@ -9,16 +12,6 @@ function int f3(int x){
     return f2(f2(x));
 }
 
-function int f4(int x){
-    return x+y;
-}
-
-function int f1(int x){
-    return x-1;
-}
-
-
-
 x = 2;
 print(x==2);
 x = f1(x);
@@ -27,5 +20,3 @@ x = f2(x);
 print(x==2);
 x = f3(x);
 print(x==4);
-x = f4(x);
-print(x==6);

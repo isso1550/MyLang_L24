@@ -80,14 +80,25 @@ class LLVMGenerator:
                 dtype = 'double'
             case _:
                 raise Exception(f"Unknown var type {dtype}")
-            
+
+        #Var already declared as local
         if vname in self.varData[self.func_depth].keys():
-            raise Exception(f"Already declared {vname}")
+            self.raiseException(f"Already declared {vname} as variable or function")
+        
+        #Var already declared as global
+        if self.func_depth > 0:
+            if vname in self.varData[0].keys():
+                if self.varData[0][vname]['global'] == True:
+                    self.raiseException(f"Already declared {vname} as global variable")
+
+        if vname in self.funcData.keys():
+            self.raiseException(f"Variable name {vname} already used as function name")
+        
         #Add
         
         if (g):
             if self.func_depth > 0:
-                raise Exception(f"Cannot declare global variable {vname} inside a function: {self.lc}")
+                self.raiseException(f"Cannot declare global variable {vname} inside a function: {self.lc}")
             #@x = dso_local global i32 0, align 4
             regc = '@' + vname
             if gval == None:
@@ -108,12 +119,14 @@ class LLVMGenerator:
         try:
             data = self.varData[self.func_depth][vname]
         except:
+            #Not found in local context
             try:
                 data = self.varData[0][vname]
                 if data['global']==False:
-                    raise Exception(f"Assignment error")
-            except:
-                raise Exception(f"Assignment error")
+                    self.raiseException(f"Unknown assigment error for var {vname}")
+            except Exception as e:
+                #Not found in global context
+                self.raiseException(f"Cannot assign to unknown variable {vname}")
         dtype = data['dtype']
         varreg = data['reg']
 
@@ -371,6 +384,8 @@ class LLVMGenerator:
         #Entering function definition (name, args...)
         #define dso_local i32 @fun(i32 noundef %0, i32 noundef %1) #0 {
         #}
+        if fname in self.varData[0].keys():
+            self.raiseException(f"Variable or function with name {fname} already exists")
 
         if self.func_depth > 0:
             raise Exception(f"Cannot create nested functions: {fname}")
@@ -391,15 +406,19 @@ class LLVMGenerator:
         if (len(self.varData) <= self.func_depth):
             self.varData.append({})
         else:
-            self.varData[self.func_depth] = {}
+            #Clear func_depth's variable storage to allow reassigning local variables in other functions
+            self.varData[self.func_depth] = {}  
 
         if (len(self.regc) <= self.func_depth):
             self.regc.append(0)
         else:
+            #Clear func_depth's reg counter to allow starting from 0 in other funcctions
             self.regc[self.func_depth] = 0
 
         self.funcData[fname] = {"rettype" : rettype, "argtypes":[]}
         self.analyzedFunc = fname
+
+        self.varData[0][fname] = {"dtype":'function', "reg":None, "init":True, "global":False}
 
         self.func_arg_list = []
         return txt
@@ -479,10 +498,14 @@ class LLVMGenerator:
     def generateCallArg(self):
         dtype, reg = self.regStack.pop()
         call_arg_n, calledFunc, call_arg_list = self.callStack.pop()
+
+        if calledFunc not in self.funcData.keys():
+            self.raiseException(f"Calling function {calledFunc} without definition or before it's definition")
+
         try:
             expected_type = self.funcData[calledFunc]['argtypes'][call_arg_n]
         except IndexError as e:
-            raise Exception(f"Passed too many arguments to {calledFunc}: {self.lc}")
+            self.raiseException(f"Too many arguments passed to {calledFunc} call. Expected {len(self.funcData[calledFunc]['argtypes'])}")
         call_arg_n += 1
 
         #Auto conversions
@@ -513,6 +536,9 @@ class LLVMGenerator:
         txt = f"\t{regc} = call {rettype} @{fname}("
         self.regStack.append((rettype, regc))
         #Args
+        if (len(call_arg_list) < len(self.funcData[fname]['argtypes'])):
+            self.raiseException(f"Not enough arguments passed to {fname} call. Got {len(call_arg_list)} Expected {len(self.funcData[fname]['argtypes'])}")
+
         txt += ', '.join(call_arg_list)
         #End
         txt += ')\n'

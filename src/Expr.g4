@@ -58,16 +58,16 @@ return:
 function_definition:
     'function' type ID
     LPAREN func_args
-    RPAREN '{' block '}' #func_def_with_args
+    RPAREN '{' block? '}' #func_def_with_args
     | 'function' type ID LPAREN 
-    RPAREN '{' block '}' #func_def_no_args
+    RPAREN '{' block? '}' #func_def_no_args
     
     | 'function' ID LPAREN func_args? RPAREN
-    '{' block '}' #error_func_def_no_type
+    '{' block? '}' #error_func_def_no_type
 
     |'function' type ID? LPAREN? 
     func_args? RPAREN? '{'? 'block'?
-    '}'? #error_func_def_no_name
+    '}'? #error_func_def
     ;
 
 func_args:

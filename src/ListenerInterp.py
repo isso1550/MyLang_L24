@@ -244,3 +244,6 @@ class ListenerInterp(ExprListener):
     def exitWhileblock(self, ctx: ExprParser.WhileblockContext):
         txt = self.generator.generateExitWhileBlock()
         self.appendText(txt)
+
+    def exitError_func_def(self, ctx: ExprParser.Error_func_defContext):
+        self.generator.raiseException(f"Syntax errors in function definition")

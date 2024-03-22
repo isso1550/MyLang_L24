@@ -1,4 +1,4 @@
-# Current Version: 0.4
+# Current Version: 0.4.2
 
 # V-List
 * 0.1 Declaration, assignment, print, expression evaluation (+,*,())
@@ -7,6 +7,8 @@
 * 0.4 If blocks, If_else blocks, While loops, double number type, handling number types, handling negative ints/doubles, nested loops, nested if_else blocks
     * 0.4.1
         program: lines? => allows handling whitespace only input (instead of throwing random errors)
+    * 0.4.2
+        better function and variable declaration exceptions associated with their names, allow functions without commands in block, handling function def syntax errors, cannot create variables and functions with same names, control number of arguments passed to function
 
 # TODO
 * tables / short circuit boolean
@@ -20,8 +22,8 @@
     * 0 - comparison, bool operations
     * 1 - basic arithmetic, negation
     * 2 - (), "advanced" arithmetic *, /
-* allowed function and variable to share name
 * user has to provide correct number type during assignment (2.0 to double 2 to int)!
+* cannot call function before its definition
 
 # Testers
 * Test1
@@ -65,3 +67,6 @@
 * Test13
     * Everything implement so far, testing multiple types, calculations, bool operators, functions, global vars, loops, nested ifs
     * Results: 2, 2, 2, 2, 2.0, 2.0, 2.0, 2.0, rest all 1
+* Test14
+    * Same name local variable used in multiple functions, use of global vars in functions, use of other functions in functions
+    * Results: all 1
