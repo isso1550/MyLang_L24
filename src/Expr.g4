@@ -68,6 +68,11 @@ function_definition:
     |'function' type ID? LPAREN? 
     func_args? RPAREN? '{'? 'block'?
     '}'? #error_func_def
+    
+    | 'function' type '[]' ID? 
+    LPAREN? 
+    func_args? RPAREN? '{'? 'block'?
+    '}'? #error_func_return_arr
     ;
 
 func_args:
@@ -82,6 +87,7 @@ func_args1:
     
 func_arg:
     type ID
+    | type '[]' ID
     ;
     
 block:
@@ -89,13 +95,21 @@ block:
     ;
 
 declaration:
-    global? type ID #declaration_no_assign
-    | global? type ID ('=' expression)? #declaration_assign //nadmiarowy '?' ?
+    global? (type | array_type)
+    ID #declaration_no_assign
+    
+    | global? (type | array_type)
+    ID '=' expression #declaration_assign 
+    
+    | global? array_type ID '=' array_assign #declaration_assign_array
+    
     | global ID ('=' expression)? #global_declaration_error
     ;
     
 assignment:
-    ID '=' expression
+    ID '=' array_assign #array_assignment
+    | (ID | array_elem) '=' 
+    expression #classic_assignment
     ;
 
 print:
@@ -110,11 +124,17 @@ value:
     | ID    #value_id
     | bool  #value_bool
     | DOUBLE #value_double
+    | array_elem #value_array_elem
+    ;
+    
+array_assign:
+    '{' value (',' value)* '}'
     ;
     
 expression:
     expr0
     ;
+    
 expr0:
     expr0 ('==' | '>' | '<' | '>=' |
     '<=' | '!=') expr0
@@ -139,10 +159,20 @@ expr2 :
     | value
     | call
     ;
+    
 type:
     'int'
     | 'bool'
     | 'double'
+    ;
+
+array_type:
+    type '[' INT ']' #arr_type
+    | type '[]' #error_no_arr_size
+    ;
+
+array_elem:
+    ID '[' expression ']'
     ;
     
 bool:

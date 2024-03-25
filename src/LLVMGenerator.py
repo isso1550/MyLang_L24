@@ -49,7 +49,12 @@ class LLVMGenerator:
 
         #Allowed number types
         self.number_types = ['i32','double']
+
+        self.arr_idx_depth = 0
     
+    def increaseIndexDepth(self):
+        self.arr_idx_depth = self.arr_idx_depth + 1
+
     def incLine(self, lc):
         self.lc = lc
 
@@ -69,7 +74,7 @@ class LLVMGenerator:
         main_start = "define dso_local i32 @main() #0 {\n"
         return txt, main_start
 
-    def generateDeclaration(self, dtype, vname, g=False, gval=None):
+    def generateDeclaration(self, dtype, vname, g=False, gval=None, arr=False, size=1):
         #Verify
         match dtype:
             case 'int' | 'i32':
@@ -94,7 +99,12 @@ class LLVMGenerator:
         if vname in self.funcData.keys():
             self.raiseException(f"Variable name {vname} already used as function name")
         
-        #Add
+        if (arr):
+            if (self.func_depth>0):
+                self.raiseException("Cannot declare arrays in functions")
+            elem_dtype = dtype
+            dtype = f"[{size} x {dtype}]"
+            gval = 'zeroinitializer'
         
         if (g):
             if self.func_depth > 0:
@@ -108,14 +118,17 @@ class LLVMGenerator:
                     gval = 0
             
             txt = f"{regc} = dso_local global {dtype} {gval}\n"
-            self.varData[0][vname] = {"dtype":dtype, "reg":regc, "init":False, "global":g}
         else:
             regc = self.nextReg()
             txt = f"\t{regc} = alloca {dtype}\n"
-            self.varData[self.func_depth][vname] = {"dtype":dtype, "reg":regc, "init":False, "global":g}
+        #UWAGA INIT ARR
+        if (arr): dtype = elem_dtype + "[]"
+
+        depth = 0 if g else self.func_depth
+        self.varData[depth][vname] = {"dtype":dtype, "reg":regc, "init":arr, "global":g, "array": arr, "size": size, "is_param": False}
         return txt
 
-    def generateAssignment(self, vname):
+    def searchVarData(self, vname):
         try:
             data = self.varData[self.func_depth][vname]
         except:
@@ -127,30 +140,62 @@ class LLVMGenerator:
             except Exception as e:
                 #Not found in global context
                 self.raiseException(f"Cannot assign to unknown variable {vname}")
+        return data
+
+    def generateAssignment(self, vname):
+        txt = ""
+        data = self.searchVarData(vname)
         dtype = data['dtype']
+
+        (valdtype, valreg) = self.regStack.pop()
         varreg = data['reg']
 
-        (dtype1, reg) = self.regStack.pop()
+        if '[]' in dtype:
+            #Get pointer to element
+            txt = self.generateLoadArrayElemPtr(dtype, varreg)
+            (dtype, varreg) = self.regStack.pop()
+        
+        if (dtype != valdtype):
+            raise Exception(f"Cannot assign {valdtype} to {dtype} {vname}: {self.lc}")
 
-        #Auto conversions
-
-        #if (dtype1=='number') & (dtype in self.number_types):
-        #    dtype1 = dtype
-        #    if dtype == 'double':
-        #        if not '.' in reg:
-        #            reg = reg + '.0'
-
-        if (dtype != dtype1):
-            raise Exception(f"Cannot assign {dtype1} to {dtype} {vname}: {self.lc}")
-
-        txt = f"\tstore {dtype} {reg}, ptr {varreg}\n"
+        txt += f"\tstore {dtype} {valreg}, ptr {varreg}\n"
         data['init'] = True
+        return txt
+    
+    
+    
+    def generateArrayAssignment(self, vname, len):
+
+        data = self.searchVarData(vname)
+        if not (data['array']):
+            self.raiseException(f"Tuple assignment can only be used on arrays (var {vname} is not an array)")
+        txt = ""
+        elem_dtype = data['dtype'][:-2]
+
+        if (len < int(data['size'])):
+            self.raiseException(f"Not enough elements to initialize array")
+        if (len > int(data['size'])):
+            self.raiseException(f"Too many values in array initialization")
+            
+        for i in range(len-1, -1, -1):
+            
+            (valdtype, valreg) = self.regStack.pop()
+            self.regStack.append(('i32', i))
+            self.increaseIndexDepth()
+            #Get pointer to element
+            txt += self.generateLoadArrayElemPtr(data['dtype'], data['reg'])
+            (_, varreg) = self.regStack.pop()
+            
+
+            if (valdtype != elem_dtype):
+                self.raiseException(f"Cannot assign {valdtype} to {elem_dtype} {vname}")
+
+            txt += f"\tstore {elem_dtype} {valreg}, ptr {varreg}\n"
+
         return txt
 
 
     def generateLoadVar(self, vname):
-        regc = self.nextReg()
-
         try:
             data = self.varData[self.func_depth][vname]
         except: 
@@ -158,19 +203,101 @@ class LLVMGenerator:
                 data = self.varData[0][vname]
                 if data['global']==False:
                     raise Exception(f"Unknown variable {vname}: {self.lc}")
-            except:
+            except Exception as e:
                 raise Exception(f"Unknown variable {vname}")
         dtype = data['dtype']
         varreg = data['reg']
         varinit = data['init']
         g = data['global']
-        
         if not varinit:
             raise Exception(f"Trying to load uninitialized variable {vname}: {self.lc}")
 
-        txt = f"\t{regc} = load {dtype}, ptr {varreg}\n"
-        self.regStack.append((dtype,regc))
+        arr = data['array']
+        txt = ""
+        if (arr):
+            if self.arr_idx_depth > 0:
+                #Get pointer to element
+                txt += self.generateLoadArrayElemPtr(data['dtype'], data['reg'])
+                (dtype, varreg) = self.regStack.pop()
+                regc = self.nextReg()
+                #Load value from pointer
+                txt += f"\t{regc} = load {dtype}, ptr {varreg}\n"
+                self.regStack.append((dtype,regc))
+            else:
+                #No index on stack, get entire array
+                txt = self.generateLoadArrayPtr(data)
+        else:
+            regc = self.nextReg()
+            txt += f"\t{regc} = load {dtype}, ptr {varreg}\n"
+            self.regStack.append((dtype,regc))
 
+        return txt
+    
+    def generateLoadArrayElemPtr(self, arr_dtype, arr_varreg):
+        varreg = arr_varreg
+        dtype = arr_dtype
+        try:
+            (idxdtype, index) = self.regStack.pop()
+            self.arr_idx_depth = self.arr_idx_depth - 1
+            #print(f"Lowered index to {self.arr_idx_depth}")
+        except Exception as e:
+            #No index on stack -> load pointer to array
+            raise IndexError(f"{e} No index -> load pointer")
+        if (idxdtype != 'i32'):
+            self.raiseException(f"Array index must be int")
+
+        txt = ""
+        if (self.func_depth > 0):
+            #Load value of pointer to input param -> only in func
+
+            #%4 = alloca ptr, align 8
+             #   store ptr %0, ptr %3, align 8
+             #   store ptr %1, ptr %4, align 8
+             #   %5 = load ptr, ptr %4, align 8
+             #   %6 = getelementptr inbounds i32, ptr %5, i64 1
+             #   store i32 -1, ptr %6, align 4
+            regc = self.nextReg()
+            txt = f"\t{regc} = load ptr, ptr {varreg}\n"
+            ptr_reg = regc
+        else:
+            ptr_reg = varreg
+        regc = self.nextReg()
+        elem_dtype = dtype[:-2]
+        txt += f"\t{regc} = getelementptr inbounds {elem_dtype}, ptr {ptr_reg}, i32 {index}\n"
+
+        #regc = self.nextReg()
+        #%7 = load i32, ptr %6, align 4
+        #txt += f"\t{regc} = load {elem_dtype}, ptr {regc}\n"
+        self.regStack.append((elem_dtype, regc))
+        return txt
+    
+    def generateLoadArrayPtr(self, data):
+        varreg = data['reg']
+        dtype = data['dtype']
+        size = data['size']
+        
+
+        elem_dtype = dtype[:-2]
+        #txt = f"\t{regc} = getelementptr inbounds [{size} x {elem_dtype}], ptr {varreg}, i64 0,  i64 0\n"
+        txt = ""
+        if (self.func_depth > 0):
+            #Load value of pointer to input param -> only in func
+
+            #%4 = alloca ptr, align 8
+             #   store ptr %0, ptr %3, align 8
+             #   store ptr %1, ptr %4, align 8
+             #   %5 = load ptr, ptr %4, align 8
+             #   %6 = getelementptr inbounds i32, ptr %5, i64 1
+             #   store i32 -1, ptr %6, align 4
+            regc = self.nextReg()
+            txt += f"\t{regc} = load ptr, ptr {varreg}\n"
+            ptr_reg = regc
+        else:
+            ptr_reg = varreg
+            regc = self.nextReg()
+            txt += f"\t{regc} = getelementptr inbounds {elem_dtype}, ptr {ptr_reg}, i32 0\n"
+        
+        self.regStack.append((dtype,regc))
         return txt
 
     def generateConvert(self, target):
@@ -184,6 +311,8 @@ class LLVMGenerator:
         regc = self.nextReg()
         (dtype,reg) = self.regStack.pop()
 
+        if (dtype[-2:] == '[]'):
+            self.raiseException("Cannot print entire array, choose one element.")
         #Auto conversions
 
         #if (dtype == 'number'):
@@ -204,7 +333,7 @@ class LLVMGenerator:
             case 'double':
                 txt = f"\t{regc} = call i32 (ptr, ...) @printf(ptr noundef @.str.1, {dtype} noundef {reg})\n"
             case _:
-                raise Exception("Unknown type")
+                self.raiseException(f"Unknown type {dtype}")
 
         return txt
 
@@ -215,7 +344,6 @@ class LLVMGenerator:
     def pushValToStack(self, val, dtype):
         #Pushing pure value to stack
         #Auto conversions
-
         if (dtype == 'number'):
             if '.' in val:
                 dtype = 'double'
@@ -328,37 +456,6 @@ class LLVMGenerator:
             case '&':
                 op = 'and'
             case '^':
-                """
-                #XOR TRUE IF AND=0 and OR=1
-                # a xor b
-                #t1 = a and b stack:t1
-                #t2 = a or b  s:t1,t2
-                #t3 = t1 = 0   s:t3
-                #t4 = t2 = 1    s:t3,t4
-                #t5 = t3 and t4
-                op = "and"
-                txt = f"\t{regc} = {op} {dtype1} {regc1}, {regc2}\n"
-                self.regStack.append((dtype, regc))
-
-                op = "or"
-                regc = self.nextReg()
-                txt += f"\t{regc} = {op} {dtype1} {regc1}, {regc2}\n"
-                self.regStack.append((dtype, regc))
-
-                regc, dtype2, regc2, dtype1, regc1  = self.prepareExpressionEvaluation(op=operator)
-                txt += f"\t{regc} = icmp eq {dtype1} {regc1}, 0" 
-                self.regStack.append((dtype,regc))
-
-                regc = self.nextReg()
-                txt += f"\t{regc} = icmp eq {dtype1} {regc2}, 1"
-                self.regStack.append((dtype,regc))
-
-                regc, dtype2, regc2, dtype1, regc1  = self.prepareExpressionEvaluation(op=operator)
-                op = "and"
-                txt += f"\t{regc} = {op} {dtype1} {regc1}, {regc2}\n"
-                self.regStack.append((dtype, regc))
-                return txt
-                """
                 op = 'xor'
             
             case _:
@@ -431,9 +528,11 @@ class LLVMGenerator:
         self.nextReg() #Artificialy increase next temp reg to %1
         return txt
 
-    def generateFunctionArgument(self, dtype, vname):
+    def generateFunctionArgument(self, dtype, vname, array=False):
         #Add function argument declaration to stack and log
         #Verify
+        if (array):
+            dtype = dtype[:-2]
         if (dtype == 'int'):
             dtype = 'i32'
         elif (dtype == 'bool'):
@@ -445,12 +544,18 @@ class LLVMGenerator:
         if vname in self.varData[self.func_depth].keys():
             raise Exception(f"Already declared {vname}")
         #Add
+        
+
         regc = self.nextReg()
 
-        
-        txt = f"{dtype} noundef {regc}"
+        if (array):
+            txt = f"ptr noundef {regc}"
+        else:
+            txt = f"{dtype} noundef {regc}"
         self.func_arg_list.append(txt)
 
+        if (array):
+            dtype = dtype + '[]'
         self.funcData[self.analyzedFunc]['argtypes'].append(dtype)
         self.funcArgsStack.append((dtype, vname, regc))
         #return txt
@@ -462,9 +567,18 @@ class LLVMGenerator:
         self.nextReg()
         while (self.funcArgsStack):
             dtype, vname, regc = self.funcArgsStack.pop()
-            self.regStack.append((dtype, regc))
-            txt += self.generateDeclaration(dtype, vname)
-            txt += self.generateAssignment(vname)
+            if (dtype[-2:] == "[]"):
+                #%2 = alloca ptr, align 8
+                #store ptr %0, ptr %2, align 8
+                alloca_reg = self.nextReg()
+                txt += f"\t{alloca_reg} = alloca ptr\n"
+                txt += f"\tstore ptr {regc}, ptr {alloca_reg}\n"
+                #dtype = dtype[:-2]
+                self.varData[self.func_depth][vname] = {"dtype":dtype, "reg":alloca_reg, "init":True, "global":False, "array": True, "size": None, "is_param": True}
+            else:
+                self.regStack.append((dtype, regc))
+                txt += self.generateDeclaration(dtype, vname)
+                txt += self.generateAssignment(vname)
         self.func_arg_list = []
         return txt
     
@@ -479,14 +593,28 @@ class LLVMGenerator:
         return txt
 
     def generateReturn(self):
-        self.nextReg()
+        
         (dtype, reg) = self.regStack.pop()
+
+        txt = ""
+        if ('[]' in dtype):
+            #Get pointer
+            txt += self.generateLoadArrayElemPtr(dtype, reg)
+            dtype, el_reg = self.regStack.pop()
+            reg = self.nextReg()
+            #Load value
+            txt += f"\t{reg} = load {dtype}, ptr {el_reg}\n"
+        else:
+            self.nextReg()
+            pass
+            
         expected_ret = self.funcData[self.analyzedFunc]['rettype']
 
         if (dtype != expected_ret):
             self.raiseException(f"Function must return type of its declaration got: {dtype} expected {expected_ret}")
         
-        txt = f'\tret {dtype} {reg}\n'
+    
+        txt += f'\tret {dtype} {reg}\n'
         return txt
     
     def generateEnterCall(self, fname):
@@ -497,6 +625,7 @@ class LLVMGenerator:
 
     def generateCallArg(self):
         dtype, reg = self.regStack.pop()
+
         call_arg_n, calledFunc, call_arg_list = self.callStack.pop()
 
         if calledFunc not in self.funcData.keys():
@@ -508,16 +637,14 @@ class LLVMGenerator:
             self.raiseException(f"Too many arguments passed to {calledFunc} call. Expected {len(self.funcData[calledFunc]['argtypes'])}")
         call_arg_n += 1
 
-        #Auto conversions
-
-        #if (dtype=='number') and (expected_type in self.number_types):
-        #    dtype = expected_type
-        #    if expected_type == 'double':
-        #        if not '.' in reg:
-        #            reg = reg + '.'
-
         if (dtype != expected_type):
-            raise Exception(f"Wrong argument type {dtype} expected {expected_type} function {calledFunc}: {self.lc}")
+            if (dtype == "ptr" and "[]" in expected_type):
+                pass
+            else:
+                raise Exception(f"Wrong argument type {dtype} expected {expected_type} function {calledFunc}: {self.lc}")
+        
+        if ('[]' in dtype):
+            dtype = "ptr noundef"
         txt = f"{dtype} {reg}"
         
         call_arg_list.append(txt)

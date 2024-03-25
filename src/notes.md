@@ -1,4 +1,4 @@
-# Current Version: 0.4.2
+# Current Version: 0.5
 
 # V-List
 * 0.1 Declaration, assignment, print, expression evaluation (+,*,())
@@ -9,11 +9,14 @@
         program: lines? => allows handling whitespace only input (instead of throwing random errors)
     * 0.4.2
         better function and variable declaration exceptions associated with their names, allow functions without commands in block, handling function def syntax errors, cannot create variables and functions with same names, control number of arguments passed to function
+* 0.5 Arrays, can't declare arrays in functions, arrays get modified in function when passed as args, getting array values, arrays as args to functions, can't return arrays from functions, return array elements, assign entire array, some syntax error exceptions, removing useless comments, split assigments to classic and array, function definition and declaration grammar exceptions syntax errors, next somewhat serious program! (selection sort + pick_min), test 15-17, test 12 fixed types
 
 # TODO
-* tables / short circuit boolean
+* tables (done?)
+* (optional) short circuit boolean
 * struct
 * read user input
+* switch case?
 
 # General info
 * nested functions not allowed
@@ -23,6 +26,15 @@
     * 1 - basic arithmetic, negation
     * 2 - (), "advanced" arithmetic *, /
 * user has to provide correct number type during assignment (2.0 to double 2 to int)!
+* cannot call function before its definition
+* cannot declare arrays in functions that call other functions, to make things easier you can't declare arrays inside functions. The requirement to use memcpy makes making it possible really difficult.
+
+# Limitations
+* no auto conversions from numbers to double/int, when initializing variable you must ensure they digit is in correct type:
+    * double a = 2; WRONG!
+    * double a = 2.0; correct!
+* cannot declare functions nor arrays inside functions
+    * declaring arrays inside functions only breaks the program if that function contains calls to another functions (not well tested, might be other causes too), but locking declaration possibility entirely makes everything simplier for both program and user who doesn't have to consider whether he can or can't do it
 * cannot call function before its definition
 
 # Testers
@@ -70,3 +82,12 @@
 * Test14
     * Same name local variable used in multiple functions, use of global vars in functions, use of other functions in functions
     * Results: all 1
+* Test15
+    * Basic arrays tests
+    * Results: 2.5, 16, 25, 3, 12, 10, 8, 6, 4, 2, 1.5, Rest all 1
+* Test16
+    * Basic arrays tests
+    * Results: all 1
+* Test17
+    * Pick min, selection_sort
+    * Results: 1, then sorted ascending 1-6

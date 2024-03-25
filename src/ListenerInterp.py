@@ -25,55 +25,57 @@ class ListenerInterp(ExprListener):
     def exitProgram(self, ctx: ExprParser.ProgramContext):
         header, main_start = self.generator.generateHeader()
         self.txt = header + self.pre_main_txt + main_start + self.txt + self.generator.generateFooter()
-        #print('_____PROGRAM_____')
-        #print(self.txt)
-
         with open("myllvm.ll",'w') as f:
             f.write(self.txt)
             f.close()
-        
-    """
-    def exitDeclaration(self, ctx: ExprParser.DeclarationContext):
-        dtype = ctx.getChild(0).getText()
-        vname = ctx.getChild(1).getText()
-        val = None
-        txt = self.generator.generateDeclaration(dtype, vname)
-        self.appendText(txt)
-        if (ctx.getChildCount() > 2):
-            #Declaration with assignment
-            val = ctx.getChild(3).getText()
-            txt = self.generator.generateAssignment(vname)
-            self.appendText(txt)
-    """       
  
     def exitDeclaration_no_assign(self, ctx: ExprParser.Declaration_no_assignContext):
-        if (type(ctx.getChild(0)) == ExprParser.GlobalContext):
-            dtype = ctx.getChild(1).getText()
-            vname = ctx.getChild(2).getText()
-            txt = self.generator.generateDeclaration(dtype, vname, g=True)
-            self.appendText(txt, append_to_premain=True)
+        g = type(ctx.getChild(0)) == ExprParser.GlobalContext
+        type_child_idx = 1 if g else 0 
+        arr = type(ctx.getChild(type_child_idx)) == ExprParser.Arr_typeContext
+        if (arr):
+            
+            dtype = ctx.getChild(type_child_idx).getChild(0).getText() 
+            size = ctx.getChild(type_child_idx).getChild(2).getText()
         else:
-            dtype = ctx.getChild(0).getText()
-            vname = ctx.getChild(1).getText()
-            txt = self.generator.generateDeclaration(dtype, vname)
-            self.appendText(txt)
+            dtype = ctx.getChild(type_child_idx).getText()
+            size = 1
+        name_child_idx = 2 if g else 1
+        vname = ctx.getChild(name_child_idx).getText()
+        txt = self.generator.generateDeclaration(dtype, vname, g=g, arr=arr, size=size)
+        self.appendText(txt, append_to_premain=g)
+        
         return vname
 
     def exitDeclaration_assign(self, ctx: ExprParser.Declaration_assignContext):
         vname = self.exitDeclaration_no_assign(ctx)
         txt = self.generator.generateAssignment(vname)
         self.appendText(txt)
+
+    def exitDeclaration_assign_array(self, ctx: ExprParser.Declaration_assign_arrayContext):
+        vname = self.exitDeclaration_no_assign(ctx)
+        len = (ctx.getChild(3).getChildCount() - 2 + 1)/2 
+        txt = self.generator.generateArrayAssignment(vname, int(len))
+        self.appendText(txt)
     
-    def exitAssignment(self, ctx: ExprParser.AssignmentContext):
-        vname = ctx.getChild(0).getText()
-        val = ctx.getChild(2).getText()
+    def exitClassic_assignment(self, ctx: ExprParser.Classic_assignmentContext):
+        if type(ctx.getChild(0)) == ExprParser.Array_elemContext:
+            vname = ctx.getChild(0).getChild(0).getText()
+        else:
+            vname = ctx.getChild(0).getText()
         txt = self.generator.generateAssignment(vname)
         self.appendText(txt)
 
-    def exitPrint(self, ctx: ExprParser.PrintContext):
-        child = ctx.getChild(2)
-        val = child.getText()
+    def enterError_no_arr_size(self, ctx: ExprParser.Error_no_arr_sizeContext):
+        self.generator.raiseException("No array size specified")
+    
+    def exitArray_assignment(self, ctx: ExprParser.Array_assignmentContext):
+        vname = ctx.getChild(0).getText()
+        len = (ctx.getChild(2).getChildCount() - 2 + 1)/2 
+        txt = self.generator.generateArrayAssignment(vname, int(len))
+        self.appendText(txt)
 
+    def exitPrint(self, ctx: ExprParser.PrintContext):
         txt = self.generator.generatePrint()
         self.appendText(txt)
     
@@ -110,6 +112,14 @@ class ListenerInterp(ExprListener):
         self.generator.pushValToStack(val, dtype)
         #self.generator.negativeValue()
 
+    def exitValue_array_elem(self, ctx: ExprParser.Value_array_elemContext):
+        arr_ctx = ctx.getChild(0)
+        vname = arr_ctx.getChild(0).getText()
+        txt = self.generator.generateLoadVar(vname)
+        self.appendText(txt)
+
+    def exitArray_elem(self, ctx: ExprParser.Array_elemContext):
+        self.generator.increaseIndexDepth()
 
     def exitExpression(self, ctx: ExprParser.ExpressionContext):
         pass
@@ -163,8 +173,14 @@ class ListenerInterp(ExprListener):
 
     def exitFunc_arg(self, ctx: ExprParser.Func_argContext):
         dtype = ctx.getChild(0).getText()
-        vname = ctx.getChild(1).getText()
-        self.generator.generateFunctionArgument(dtype, vname)
+        if (ctx.getChild(1).getText() == "[]"):
+            arr = True
+            vname = ctx.getChild(2).getText()
+            dtype = dtype + "[]"
+        else:
+            arr = False
+            vname = ctx.getChild(1).getText()
+        self.generator.generateFunctionArgument(dtype, vname, array=arr)
 
     def exitFunc_args(self, ctx: ExprParser.Func_argsContext):
         txt = self.generator.generateExitFunctionDefinition()
@@ -205,6 +221,8 @@ class ListenerInterp(ExprListener):
         self.generator.raiseException(f"Global variable declaration without type {ctx.getChild(1).getText()}")
     def enterError_func_def_no_type(self, ctx: ExprParser.Error_func_def_no_typeContext):
         self.generator.raiseException(f"Function {ctx.getChild(1).getText()} error missing return type")
+    def enterError_func_return_arr(self, ctx: ExprParser.Error_func_return_arrContext):
+        self.generator.raiseException(f"Function cannot return array type. Use global variables to modify.")
     
     def enterIfblock(self, ctx: ExprParser.IfblockContext):
         txt = self.generator.generateEnterIf()

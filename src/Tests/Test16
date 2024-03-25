@@ -1,0 +1,33 @@
+function int f3(int[] a){
+    print(a[0]==6);
+    a[0] = 5;
+    return 0;
+}
+
+function int f4(int[] a){
+    return f3(a);
+}
+
+int[2] a = {6,8};
+print(f4(a)==0);
+print(a[0]==5);
+
+double[3] b;
+b[0] = 1.0;
+b[1] = 2.0;
+b[2] = 3.0;
+
+int i = 0;
+int len = 3;
+
+double sum = 0.0;
+while i < len {
+    sum = sum + b[i];
+    i = i+1;
+}
+print(sum == 6.0);
+
+print((b[0]+b[1] >= b[2]) & (b[0]+b[1] <= b[2]));
+
+b[0] = b[1] - 1.0;
+print(b[0] == 1.0);
