@@ -1,45 +1,8 @@
-int[6] t = {3,6,5,4,1,2};
+struct myType {
+    int a;
+    int b;
+};
 
-function int min_element(int[] t, int len){
-    int min = t[0];
-    int i = 0;
-    while i<len{
-        if (t[i] < min){
-            min = t[i];
-        }
-        i = i + 1;
-    }
-    return min;
-}
-
-int r = min_element(t, 6);
-print(r);
-
-function int selection_sort(int[] t, int len){
-    int i = 0;
-    while i<len {
-        int min_idx = i;
-        int j = i + 1;
-        while (j<len){
-            if (t[min_idx] > t[j]){
-                min_idx = j;
-            }
-            j = j + 1;
-        }
-        int tmp = t[min_idx];
-        t[min_idx] = t[i];
-        t[i] = tmp;
-        i = i + 1;
-    }
-
-    i = 0;
-    while i<len{
-        print(t[i]);
-        i = i + 1;
-    }
-    return 0;
-}
-
-int[6] t2 = {3,6,5,4,1,2};
-int len = 6;
-selection_sort(t2, len);
+struct myType g;
+g.a = 2;
+print(g.a > 0);

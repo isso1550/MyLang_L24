@@ -56,23 +56,28 @@ return:
     ;
     
 function_definition:
-    'function' type ID
+    'function' func_ret_type ID
     LPAREN func_args
     RPAREN '{' block? '}' #func_def_with_args
-    | 'function' type ID LPAREN 
+    | 'function' func_ret_type ID LPAREN 
     RPAREN '{' block? '}' #func_def_no_args
     
     | 'function' ID LPAREN func_args? RPAREN
     '{' block? '}' #error_func_def_no_type
 
-    |'function' type ID? LPAREN? 
+    |'function' func_ret_type ID? LPAREN? 
     func_args? RPAREN? '{'? 'block'?
     '}'? #error_func_def
     
-    | 'function' type '[]' ID? 
+    | 'function' func_ret_type '[]' ID? 
     LPAREN? 
     func_args? RPAREN? '{'? 'block'?
     '}'? #error_func_return_arr
+    ;
+    
+func_ret_type:
+    type |
+    'struct' ID
     ;
 
 func_args:
@@ -88,6 +93,7 @@ func_args1:
 func_arg:
     type ID
     | type '[]' ID
+    | 'struct' ID ID
     ;
     
 block:
@@ -104,13 +110,34 @@ declaration:
     | global? array_type ID '=' array_assign #declaration_assign_array
     
     | global ID ('=' expression)? #global_declaration_error
+    
+    | 'struct' ID '{' struct_fields '}' 
+    #struct_declaration
+    
+    | global? 'struct' ID ID #struct_object_declaration
+    
+    ;
+    
+struct_fields:
+    struct_field ';' struct_fields?
+    ;
+
+struct_field:
+    type ID
+    | type ID '[' INT ']' 
+    | 'struct' ID ID
     ;
     
 assignment:
     ID '=' array_assign #array_assignment
     | (ID | array_elem) '=' 
     expression #classic_assignment
+    | struct_elem '=' expression 
+    #struct_assignment
     ;
+    
+struct_elem:
+    ID '.' ID;
 
 print:
     'print' LPAREN expression RPAREN
@@ -125,6 +152,7 @@ value:
     | bool  #value_bool
     | DOUBLE #value_double
     | array_elem #value_array_elem
+    | struct_elem #value_struct_elem
     ;
     
 array_assign:

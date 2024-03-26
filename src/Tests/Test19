@@ -1,0 +1,83 @@
+struct myType {
+    int a;
+    int b;
+};
+
+struct myStruct {
+    int a;
+};
+
+struct myType x;
+x.a = 1;
+print(x.a==1);
+struct myStruct a;
+a.a = 5;
+print(a.a==5);
+
+function int f1(struct myType s1){
+    s1.a = s1.a + 5;
+    return 0;
+}
+
+x.a = 5;
+print(x.a==5);
+f1(x);
+print(x.a==5);
+
+
+global struct myType b;
+b.a = 5;
+b.b = 3;
+
+function int f2(){
+    b.a = b.a + 5;
+    return b.b;
+}
+
+
+print(b.a == 5);
+int c = f2();
+print(b.a==10);
+print(c==3);
+
+struct myType d;
+d = b;
+print(d.a==10);
+b.a = 12;
+print(d.a==10 & b.a==12);
+
+function int f3(int k){
+    struct myStruct x;
+    x.a = 15;
+    x.a = x.a + k * k;
+    return x.a;
+}
+
+int e = f3(5);
+print(e==15+5*5);
+
+struct mul {
+    int x;
+    double y;
+    bool z;
+};
+
+struct mul f;
+f.x = 2;
+f.y = 2.0;
+f.z = true;
+
+if (f.x <= 2){
+    if (f.y <= 2.0){
+        if ~~f.z {
+            print(-1);
+        }
+    }
+}
+
+struct myType g;
+g.a = 15;
+g.b = 25;
+
+int h = (g.b*2 + g.a/3) * 2 - 10;
+print(h==100);

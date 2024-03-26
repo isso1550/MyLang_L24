@@ -1,4 +1,4 @@
-# Current Version: 0.5
+# Current Version: 0.6
 
 # V-List
 * 0.1 Declaration, assignment, print, expression evaluation (+,*,())
@@ -10,13 +10,16 @@
     * 0.4.2
         better function and variable declaration exceptions associated with their names, allow functions without commands in block, handling function def syntax errors, cannot create variables and functions with same names, control number of arguments passed to function
 * 0.5 Arrays, can't declare arrays in functions, arrays get modified in function when passed as args, getting array values, arrays as args to functions, can't return arrays from functions, return array elements, assign entire array, some syntax error exceptions, removing useless comments, split assigments to classic and array, function definition and declaration grammar exceptions syntax errors, next somewhat serious program! (selection sort + pick_min), test 15-17, test 12 fixed types
+* 0.6 Structures, declare struct, assign to struct, assign to struct fields, fields type check, pass struct as argument, global structures, use struct values in expressions
 
 # TODO
 * tables (done?)
 * (optional) short circuit boolean
-* struct
+* struct (done?)
 * read user input
 * switch case?
+* verify errors!
+* clean up useless code after disabling struct as possible return
 
 # General info
 * nested functions not allowed
@@ -28,6 +31,8 @@
 * user has to provide correct number type during assignment (2.0 to double 2 to int)!
 * cannot call function before its definition
 * cannot declare arrays in functions that call other functions, to make things easier you can't declare arrays inside functions. The requirement to use memcpy makes making it possible really difficult.
+* functions cannot return structures, to modify them use globals
+* cannot declare function using global vars before declaring used global vars
 
 # Limitations
 * no auto conversions from numbers to double/int, when initializing variable you must ensure they digit is in correct type:
@@ -36,6 +41,11 @@
 * cannot declare functions nor arrays inside functions
     * declaring arrays inside functions only breaks the program if that function contains calls to another functions (not well tested, might be other causes too), but locking declaration possibility entirely makes everything simplier for both program and user who doesn't have to consider whether he can or can't do it
 * cannot call function before its definition
+* functions cannot return structs, to modify struct use global variables
+* cannot declare functions using global variables before declaring these global variables
+* only "syntax error" when user attempts to declare struct with assignment
+* can't assign multiple values at once to structure
+
 
 # Testers
 * Test1
@@ -91,3 +101,9 @@
 * Test17
     * Pick min, selection_sort
     * Results: 1, then sorted ascending 1-6
+* Test18
+    * Basic structs
+    * Results: all 1
+* Test19
+    * More advanced structure operations
+    * Results: almost all 1, second to last should be -1

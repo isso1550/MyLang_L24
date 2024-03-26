@@ -51,6 +51,8 @@ class LLVMGenerator:
         self.number_types = ['i32','double']
 
         self.arr_idx_depth = 0
+
+        self.structData = {}
     
     def increaseIndexDepth(self):
         self.arr_idx_depth = self.arr_idx_depth + 1
@@ -127,6 +129,54 @@ class LLVMGenerator:
         depth = 0 if g else self.func_depth
         self.varData[depth][vname] = {"dtype":dtype, "reg":regc, "init":arr, "global":g, "array": arr, "size": size, "is_param": False}
         return txt
+    
+    def generateStructDeclaration(self, sname, struct_arg_list):
+        #%struct.myType = type { i32, i32 }
+        types = [x[0] for x in struct_arg_list]
+        field_names = [x[1] for x in struct_arg_list]
+        for i in range(len(types)):
+            t = types[i]
+            match t:
+                case 'int':
+                    types[i] = 'i32'
+                case 'bool':
+                    types[i] = 'i1'
+                case 'double':
+                    pass
+                case _:
+                    self.raiseException(f"Unknown type {t} in struct declaration")
+
+        self.structData[sname] = {"types" : types, "field_names" : field_names}
+        txt = f"%struct.{sname} = type {'{'} {', '.join(types)} {'}'}\n"
+        
+        return txt
+    
+    def generateStructObjectDeclaration(self, sname, vname, g=False):
+        if not sname in self.structData.keys():
+            self.raiseException(f"Unknown struct type {sname}")
+
+        #%2 = alloca %struct.myType, align 4
+        
+        if (vname in self.varData[self.func_depth].keys()):
+            self.raiseException(f"Var {vname} already declared")
+        elif (vname in self.varData[0].keys()):
+            if self.varData[0][vname]['global'] == True:
+                self.raiseException(f"Var {vname} already declared")
+
+        if (g):
+            #@s1 = dso_local global %struct.myType zeroinitializer, align 4
+            regc = "@"+vname
+            txt = f"\t{regc} = dso_local global %struct.{sname} zeroinitializer\n"
+        else:
+            regc = self.nextReg()
+            txt = f"\t{regc} = alloca %struct.{sname}\n"
+
+        depth = 0 if g else self.func_depth
+        self.varData[depth][vname] = {"dtype":"struct."+sname, "reg":regc, "init":True, "global":g, "array": False, "size": 1, "is_param": False}
+        return txt
+
+
+
 
     def searchVarData(self, vname):
         try:
@@ -156,8 +206,14 @@ class LLVMGenerator:
             (dtype, varreg) = self.regStack.pop()
         
         if (dtype != valdtype):
-            raise Exception(f"Cannot assign {valdtype} to {dtype} {vname}: {self.lc}")
+            if (valdtype == 'i64' and 'struct' in dtype):
+                #Special case: assigning structures
+                pass
+            else:
+                raise Exception(f"Cannot assign {valdtype} to {dtype} {vname}: {self.lc}")
 
+        if 'struct.' in dtype:
+            dtype = 'i64'
         txt += f"\tstore {dtype} {valreg}, ptr {varreg}\n"
         data['init'] = True
         return txt
@@ -193,8 +249,53 @@ class LLVMGenerator:
             txt += f"\tstore {elem_dtype} {valreg}, ptr {varreg}\n"
 
         return txt
+    
+    def generateStructAssigment(self, vname, field_name):
+        data = self.searchVarData(vname)
+        stype = data['dtype'].split('.')[1]
 
+        sdata = self.structData[stype]
+        field_names = sdata['field_names']
+        if not field_name in field_names:
+            self.raiseException(f"Unknown field name {field_name} for struct type {stype}")
+        field_idx = field_names.index(field_name)
+        field_type = sdata['types'][field_idx]
+        (valdtype, valreg) = self.regStack.pop()
+        if valdtype != field_type:
+            self.raiseException(f"Wrong type in struct field assignment. Got {valdtype} expected {field_type}")
 
+        sreg = data['reg']
+        txt = self.generateLoadStructFieldPointer(stype, sreg, field_idx)
+        (dtype, regc) = self.regStack.pop()
+        txt += f"\tstore {valdtype} {valreg}, ptr {regc}\n"
+        return txt
+    
+    def generateLoadStructField(self, vname, field_name):
+        data = self.searchVarData(vname)
+        stype = data['dtype'].split('.')[1]
+
+        sdata = self.structData[stype]
+        field_names = sdata['field_names']
+        if not field_name in field_names:
+            self.raiseException(f"Unknown field name {field_name} for struct type {stype}")
+        field_idx = field_names.index(field_name)
+        field_type = sdata['types'][field_idx]
+
+        txt = self.generateLoadStructFieldPointer(stype, data['reg'], field_idx)
+        (ptrdtype, ptrregc) = self.regStack.pop()
+        #%8 = load i32, ptr %7, align 4
+        regc = self.nextReg()
+        txt += f'\t{regc} = load {field_type}, ptr {ptrregc}\n'
+        self.regStack.append((field_type, regc))
+        return txt
+    
+    def generateLoadStructFieldPointer(self, stype, sreg, index):
+        #%2 = getelementptr inbounds %struct.myType, ptr %1, i32 0, i32 0
+        regc = self.nextReg()
+        txt = f"\t{regc} = getelementptr inbounds %struct.{stype}, ptr {sreg}, i32 {index}\n"
+        self.regStack.append(('struct_field_ptr', regc))
+        return txt
+    
     def generateLoadVar(self, vname):
         try:
             data = self.varData[self.func_depth][vname]
@@ -226,14 +327,26 @@ class LLVMGenerator:
             else:
                 #No index on stack, get entire array
                 txt = self.generateLoadArrayPtr(data)
+        elif '.' in dtype:
+            #%4 = load i64, ptr %1, align 4
+            if dtype.split('.')[1] in self.structData.keys():    
+                #regc = self.nextReg()
+                #txt += f"\t{regc} = load %{dtype}, ptr {varreg}\n"
+                #self.regStack.append((dtype, regc))
+                txt += self.loadEntireStruct(varreg)
         else:
             regc = self.nextReg()
             txt += f"\t{regc} = load {dtype}, ptr {varreg}\n"
             self.regStack.append((dtype,regc))
-
         return txt
-    
+    def loadEntireStruct(self, varreg):
+        regc = self.nextReg()
+        txt = f"\t{regc} = load i64, ptr {varreg}\n"
+        self.regStack.append(('i64', regc))
+        return txt
+
     def generateLoadArrayElemPtr(self, arr_dtype, arr_varreg):
+        
         varreg = arr_varreg
         dtype = arr_dtype
         try:
@@ -487,6 +600,7 @@ class LLVMGenerator:
         if self.func_depth > 0:
             raise Exception(f"Cannot create nested functions: {fname}")
 
+        retstruct = False
         match rettype:
             case 'int':
                 rettype = 'i32'
@@ -495,9 +609,21 @@ class LLVMGenerator:
             case 'double':
                 rettype = 'double'
             case _:
-                raise Exception(f"Unknown return type for function {fname} : {rettype}")
+                if 'struct.' in rettype:
+                    #Block struct returns
+                    self.raiseException(f"Functions cannot return structures. Func: {fname}")
+                    if rettype.split('.')[1] in self.structData.keys():
+                        retstruct = True
+                        
+                    else:
+                        pass
+                else:        
+                    raise Exception(f"Unknown return type for function {fname} : {rettype}")
 
-        txt = f"define dso_local {rettype} @{fname}("
+        if retstruct:
+            txt = f"define dso_local i64 @{fname}("
+        else:
+            txt = f"define dso_local {rettype} @{fname}("
 
         self.func_depth += 1
         if (len(self.varData) <= self.func_depth):
@@ -528,19 +654,32 @@ class LLVMGenerator:
         self.nextReg() #Artificialy increase next temp reg to %1
         return txt
 
-    def generateFunctionArgument(self, dtype, vname, array=False):
+    def generateFunctionArgument(self, dtype, vname, array=False, struct=False):
         #Add function argument declaration to stack and log
         #Verify
         if (array):
             dtype = dtype[:-2]
-        if (dtype == 'int'):
-            dtype = 'i32'
-        elif (dtype == 'bool'):
-            dtype = 'i1'
-        elif (dtype =='double'):
-            dtype = 'double'
+            if (dtype == 'int'):
+                dtype = 'i32'
+            elif (dtype == 'bool'):
+                dtype = 'i1'
+            elif (dtype =='double'):
+                dtype = 'double'
+        
+        elif (struct):
+            if not (dtype in self.structData.keys()):
+                self.raiseException(f"Unknown struct type {dtype}")
+
         else:
-            raise Exception(f"Unknown var type {dtype}")
+            if (dtype == 'int'):
+                dtype = 'i32'
+            elif (dtype == 'bool'):
+                dtype = 'i1'
+            elif (dtype =='double'):
+                dtype = 'double'
+            else:
+                raise Exception(f"Unknown var type {dtype}")
+            
         if vname in self.varData[self.func_depth].keys():
             raise Exception(f"Already declared {vname}")
         #Add
@@ -550,12 +689,16 @@ class LLVMGenerator:
 
         if (array):
             txt = f"ptr noundef {regc}"
+        elif (struct):
+            txt = f"i64 {regc}"
         else:
             txt = f"{dtype} noundef {regc}"
         self.func_arg_list.append(txt)
 
         if (array):
             dtype = dtype + '[]'
+        elif(struct):
+            dtype = "struct." + dtype
         self.funcData[self.analyzedFunc]['argtypes'].append(dtype)
         self.funcArgsStack.append((dtype, vname, regc))
         #return txt
@@ -566,7 +709,7 @@ class LLVMGenerator:
         txt += f") {'{'}\n"
         self.nextReg()
         while (self.funcArgsStack):
-            dtype, vname, regc = self.funcArgsStack.pop()
+            dtype, vname, regc = self.funcArgsStack.popleft()
             if (dtype[-2:] == "[]"):
                 #%2 = alloca ptr, align 8
                 #store ptr %0, ptr %2, align 8
@@ -575,6 +718,13 @@ class LLVMGenerator:
                 txt += f"\tstore ptr {regc}, ptr {alloca_reg}\n"
                 #dtype = dtype[:-2]
                 self.varData[self.func_depth][vname] = {"dtype":dtype, "reg":alloca_reg, "init":True, "global":False, "array": True, "size": None, "is_param": True}
+            elif ('struct.' in dtype):
+                #%2 = alloca %struct.myType, align 4
+                alloca_reg = self.nextReg()
+                txt += f"\t{alloca_reg} = alloca %{dtype}\n"
+                #store i64 %0, ptr %2, align 4
+                txt += f"\tstore i64 {regc}, ptr {alloca_reg} \n"
+                self.varData[self.func_depth][vname] = {'dtype':dtype, 'reg':alloca_reg, 'init': True, 'global': False, 'array':False, 'size': None, 'is_param':True}
             else:
                 self.regStack.append((dtype, regc))
                 txt += self.generateDeclaration(dtype, vname)
@@ -588,6 +738,8 @@ class LLVMGenerator:
         #Exiting ENTIRE function declaration
         dtype = self.funcData[self.analyzedFunc]['rettype']
         default_val = 0.0 if dtype == 'double' else 0
+        if ('struct.' in dtype):
+            dtype = 'i64'
         txt = f'\n\tret {dtype} {default_val}'
         self.func_depth -= 1
         return txt
@@ -611,7 +763,10 @@ class LLVMGenerator:
         expected_ret = self.funcData[self.analyzedFunc]['rettype']
 
         if (dtype != expected_ret):
-            self.raiseException(f"Function must return type of its declaration got: {dtype} expected {expected_ret}")
+            if (dtype == 'i64') and ('struct.' in expected_ret):
+                dtype = 'i64'
+            else:
+                self.raiseException(f"Function must return type of its declaration got: {dtype} expected {expected_ret}")
         
     
         txt += f'\tret {dtype} {reg}\n'
@@ -640,11 +795,17 @@ class LLVMGenerator:
         if (dtype != expected_type):
             if (dtype == "ptr" and "[]" in expected_type):
                 pass
+            elif (dtype == "i64" and "struct." in expected_type):
+                pass
             else:
                 raise Exception(f"Wrong argument type {dtype} expected {expected_type} function {calledFunc}: {self.lc}")
         
         if ('[]' in dtype):
             dtype = "ptr noundef"
+
+        #if ('.' in dtype):
+        #    dtype = 'i64'
+
         txt = f"{dtype} {reg}"
         
         call_arg_list.append(txt)
@@ -659,8 +820,13 @@ class LLVMGenerator:
         except:
             raise Exception(f"Unknown function {fname}: {self.lc}")
         rettype = data['rettype']
+        
         regc = self.nextReg()
-        txt = f"\t{regc} = call {rettype} @{fname}("
+
+        if 'struct' in rettype:
+            txt = f"\t{regc} = call i64 @{fname}("
+        else:
+            txt = f"\t{regc} = call {rettype} @{fname}("
         self.regStack.append((rettype, regc))
         #Args
         if (len(call_arg_list) < len(self.funcData[fname]['argtypes'])):

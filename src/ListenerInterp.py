@@ -66,6 +66,46 @@ class ListenerInterp(ExprListener):
         txt = self.generator.generateAssignment(vname)
         self.appendText(txt)
 
+    def exitStruct_declaration(self, ctx: ExprParser.Struct_declarationContext):
+        sname = ctx.getChild(1).getText()
+        struct_arg_list = []
+        tctx = ctx.getChild(3)
+        elem_dtype = tctx.getChild(0).getChild(0).getText()
+        elem_name = tctx.getChild(0).getChild(1).getText()
+        
+        if (tctx.getChild(0).getChildCount()>2):
+                if (tctx.getChild(0).getChild(0).getText() == 'struct'):
+                    self.generator.raiseException("Cannot use structures as struct fields")
+                self.generator.raiseException("Cannot use arrays as struct fields")
+
+        struct_arg_list.append((elem_dtype, elem_name))
+
+
+        while(type(tctx.getChild(2)) == ExprParser.Struct_fieldsContext):
+            tctx = tctx.getChild(2)
+            elem_dtype = tctx.getChild(0).getChild(0).getText()
+            elem_name = tctx.getChild(0).getChild(1).getText()
+            if (tctx.getChild(0).getChildCount()>2):
+                if (tctx.getChild(0).getChild(0).getText() == 'struct'):
+                    self.generator.raiseException("Cannot use structures as struct fields")
+                self.generator.raiseException("Cannot use arrays as struct fields")
+            
+            struct_arg_list.append((elem_dtype, elem_name))
+        txt = self.generator.generateStructDeclaration(sname, struct_arg_list)
+        self.appendText(txt, append_to_premain=True)
+
+    def exitStruct_object_declaration(self, ctx: ExprParser.Struct_object_declarationContext):
+        if (type(ctx.getChild(0)) == ExprParser.GlobalContext):
+            g = True
+            sname = ctx.getChild(2).getText()
+            vname = ctx.getChild(3).getText()
+        else:
+            g = False
+            sname = ctx.getChild(1).getText()
+            vname = ctx.getChild(2).getText()
+        txt = self.generator.generateStructObjectDeclaration(sname, vname, g=g)
+        self.appendText(txt, append_to_premain=g)
+
     def enterError_no_arr_size(self, ctx: ExprParser.Error_no_arr_sizeContext):
         self.generator.raiseException("No array size specified")
     
@@ -73,6 +113,12 @@ class ListenerInterp(ExprListener):
         vname = ctx.getChild(0).getText()
         len = (ctx.getChild(2).getChildCount() - 2 + 1)/2 
         txt = self.generator.generateArrayAssignment(vname, int(len))
+        self.appendText(txt)
+
+    def exitStruct_assignment(self , ctx: ExprParser.Struct_assignmentContext):
+        vname = ctx.getChild(0).getChild(0).getText()
+        field_name = ctx.getChild(0).getChild(2).getText()
+        txt = self.generator.generateStructAssigment(vname, field_name)
         self.appendText(txt)
 
     def exitPrint(self, ctx: ExprParser.PrintContext):
@@ -118,6 +164,12 @@ class ListenerInterp(ExprListener):
         txt = self.generator.generateLoadVar(vname)
         self.appendText(txt)
 
+    def exitValue_struct_elem(self, ctx: ExprParser.Value_struct_elemContext):
+        vname = ctx.getChild(0).getChild(0).getText()
+        field_name = ctx.getChild(0).getChild(2).getText()
+        txt = self.generator.generateLoadStructField(vname, field_name)
+        self.appendText(txt)
+
     def exitArray_elem(self, ctx: ExprParser.Array_elemContext):
         self.generator.increaseIndexDepth()
 
@@ -157,7 +209,11 @@ class ListenerInterp(ExprListener):
 
     def enterFunction_definition(self, ctx: ExprParser.Function_definitionContext):
         self.func_depth += 1
-        rettype = ctx.getChild(1).getText()
+        #rettype = ctx.getChild(1).getText()
+        if type(ctx.getChild(1).getChild(0)) == ExprParser.TypeContext:
+            rettype = ctx.getChild(1).getText()
+        else:
+            rettype = "struct." + ctx.getChild(1).getChild(1).getText()
         fname = ctx.getChild(2).getText()
         txt = self.generator.generateEnterFunctionDefinition(rettype, fname)
         self.appendText(txt)
@@ -166,21 +222,33 @@ class ListenerInterp(ExprListener):
         return self.enterFunction_definition(ctx)
     def enterFunc_def_no_args(self, ctx: ExprParser.Func_def_no_argsContext):
         self.func_depth += 1
-        rettype = ctx.getChild(1).getText()
+        if type(ctx.getChild(1).getChild(0)) == ExprParser.TypeContext:
+            rettype = ctx.getChild(1).getText()
+        else:
+            rettype = "struct." + ctx.getChild(1).getChild(1).getText()
         fname = ctx.getChild(2).getText()
         txt = self.generator.generateEnterFunctionDefinitionNoArgs(rettype, fname)
         self.appendText(txt)
 
     def exitFunc_arg(self, ctx: ExprParser.Func_argContext):
-        dtype = ctx.getChild(0).getText()
+        
         if (ctx.getChild(1).getText() == "[]"):
             arr = True
+            struct = False
+            dtype = ctx.getChild(0).getText()
             vname = ctx.getChild(2).getText()
             dtype = dtype + "[]"
         else:
             arr = False
-            vname = ctx.getChild(1).getText()
-        self.generator.generateFunctionArgument(dtype, vname, array=arr)
+            if ctx.getChild(0).getText() == 'struct':
+                struct = True
+                dtype = ctx.getChild(1).getText()
+                vname = ctx.getChild(2).getText()
+            else:
+                struct = False
+                dtype = ctx.getChild(0).getText()
+                vname = ctx.getChild(1).getText()
+        self.generator.generateFunctionArgument(dtype, vname, array=arr, struct=struct)
 
     def exitFunc_args(self, ctx: ExprParser.Func_argsContext):
         txt = self.generator.generateExitFunctionDefinition()

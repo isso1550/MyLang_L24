@@ -1,0 +1,36 @@
+struct myType {
+    int a;
+    int b;
+};
+
+
+
+global struct myType s1;
+s1.a = 2;
+s1.b = 3;
+
+function int f2(){
+    s1.b = s1.a;
+}
+
+function int f4(){
+    struct myType s2;
+    s1.b = 5;
+    return 0;
+}
+
+
+f2();
+print(s1.b);
+
+function int f3(){
+    s1.b = s1.b * 12;
+}
+
+print(s1.b);
+f3();
+print(s1.b);
+
+s1.a = f4();
+print(s1.a);
+print(s1.b);
