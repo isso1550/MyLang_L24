@@ -1,0 +1,74 @@
+int a = 2;
+int b = 3;
+int c = 2;
+
+switch a*b {
+    case a+b {
+        c = c + 1;
+
+    }
+    case a-b {
+    }
+    case a*b {
+        c = a + b;
+        c = c + a;
+        c = c + b;
+        c = 12;
+        if (c == 12){
+            c = 3;
+        }
+    }
+    default {
+    }
+}
+
+print(c==3);
+
+function int cmp(int i){
+    switch i {
+        case 1 {
+            return 1;
+        }
+        
+        case 2 {
+            return 2;
+        }
+        default {
+            return 3;
+        }
+    }
+}
+
+int d = cmp(12);
+print(d == 3);
+
+d = cmp(1);
+print(d==1);
+d = cmp(2);
+print(d==2);
+
+switch 12.1>2.5{
+    case true {
+
+    }
+    case false {
+
+    }
+    default {
+
+    }
+}
+
+print(d==2);
+
+double z;
+z = 7.1;
+switch z>6.67 {
+    case true {
+        z = 1.0;
+    }
+    default {
+        z = 5.0;
+    }
+}
+print(z==1.0);

@@ -11,28 +11,46 @@ lines:
 line: 
     declaration ';'
     | ifline
+    | switchcase
     | whileloop
     | function_definition
     | assignment ';'
     | call ';'
     | return ';'
     | expression ';'
+    ;
     
+switchcase:
+    'switch' expression '{' switchbody '}'
+    ;
+
+switchbody:
+    caseblock* defaultblock
+    ;
+
+caseblock:
+    'case' case_value '{' block? '}'
+    ;
+case_value:
+    expression
+    ;
     
+defaultblock:
+    'default' '{' block? '}'
     ;
 
 whileloop:
     'while' expression '{' whileblock '}'
     ;
-whileblock: block;    
+whileblock: block?;    
 
 ifline:
     'if' expression '{' ifblock '}' #if_no_else
     | 'if' expression '{' ifblock '}' 'else' 
     '{' elseblock '}' #if_else
     ;
-ifblock: block;
-elseblock: block;
+ifblock: block?;
+elseblock: block?;
 
 global:
     'global'

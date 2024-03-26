@@ -21,16 +21,16 @@ function int f4(){
 
 
 f2();
-print(s1.b);
+print(s1.b==2);
 
 function int f3(){
     s1.b = s1.b * 12;
 }
 
-print(s1.b);
+print(s1.b==2);
 f3();
-print(s1.b);
+print(s1.b==24);
 
 s1.a = f4();
-print(s1.a);
-print(s1.b);
+print(s1.a==0);
+print(s1.b==5);

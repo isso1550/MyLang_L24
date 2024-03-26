@@ -1,5 +1,6 @@
 import sys
 from antlr4 import *
+import re
 from ExprParser import ExprParser
 from ExprListener import ExprListener
 from LLVMGenerator import LLVMGenerator
@@ -11,13 +12,25 @@ class ListenerInterp(ExprListener):
         self.generator = LLVMGenerator()
         self.txt = ""
         self.pre_main_txt = ""
+
+        self.switch_header_txt = [""]
+        self.append_to_switch_header = False
+        self.switch_body_txt = [""]
+        self.append_to_switch_body = False
+        self.switchdepth = 0
+
+
         self.func_depth = 0
         self.result = {}
 
         self.exprStack = deque() 
 
     def appendText(self, txt, append_to_premain=False):
-        if (self.func_depth > 0) | (append_to_premain):
+        if (self.append_to_switch_header):
+            self.switch_header_txt[self.switchdepth] += txt
+        elif (self.append_to_switch_body):
+            self.switch_body_txt[self.switchdepth] += txt
+        elif (self.func_depth > 0) | (append_to_premain):
             self.pre_main_txt += txt
         else:
             self.txt += txt
@@ -295,9 +308,10 @@ class ListenerInterp(ExprListener):
 
     def enterLine(self, ctx: ExprParser.LineContext):
         self.generator.incLine(ctx.start.line)
+
+    def exitLine(self, ctx: ExprParser.LineContext):
         if type(ctx.getChild(0)) in [ExprParser.Call_funcContext, ExprParser.Call_printContext]:
-            #Don't push return value to stack if user doesn't care about return
-            self.generator.preventCallPushToStack()
+            self.generator.popStack()
 
     def enterGlobal_declaration_error(self, ctx: ExprParser.Global_declaration_errorContext):
         self.generator.raiseException(f"Global variable declaration without type {ctx.getChild(1).getText()}")
@@ -347,3 +361,73 @@ class ListenerInterp(ExprListener):
 
     def exitError_func_def(self, ctx: ExprParser.Error_func_defContext):
         self.generator.raiseException(f"Syntax errors in function definition")
+
+
+    def enterSwitchbody(self, ctx: ExprParser.SwitchbodyContext):
+        if self.switchdepth > 0:
+            self.generator.raiseException("Cannot nest switchcases")
+        self.switchdepth += 1
+        if len(self.switch_body_txt) == self.switchdepth:
+            self.switch_header_txt.append("")
+            self.switch_body_txt.append("")
+        else:
+            self.switch_header_txt[self.switchdepth] = ""
+            self.switch_body_txt[self.switchdepth] = ""
+
+        self.append_to_switch_body = True
+        case_count = ctx.getChildCount()
+        self.generator.generateEnterSwitchbody(case_count)
+
+    def enterCaseblock(self, ctx: ExprParser.CaseblockContext):
+        txt = self.generator.generateEnterCaseblock()
+        self.appendText(txt)
+
+    def enterCase_value(self, ctx: ExprParser.Case_valueContext):
+        self.generator.generateEnterCase_value()
+        self.append_to_switch_header = True
+        self.append_to_switch_body = False
+
+    def exitCase_value(self, ctx: ExprParser.Case_valueContext):
+        self.generator.generateExitCase_value()
+        self.append_to_switch_header = False
+        self.append_to_switch_body = True
+
+    def exitCaseblock(self, ctx: ExprParser.CaseblockContext):
+        txt = self.generator.generateExitCaseblock()
+        self.appendText(txt)
+
+    def enterDefaultblock(self, ctx: ExprParser.DefaultblockContext):
+        txt = self.generator.generateEnterDefaultblock()
+        self.appendText(txt)
+
+    def exitDefaultblock(self, ctx: ExprParser.DefaultblockContext):
+        txt = self.generator.generateExitDefaultblock()
+        self.appendText(txt)
+
+    def exitSwitchbody(self, ctx: ExprParser.SwitchbodyContext):
+        txt, end_txt, current_main_reg, switch_first_reg, switch_last_reg = self.generator.generateExitSwitchbody()
+        self.append_to_switch_header = True
+        self.append_to_switch_body = False
+        self.appendText(txt)
+        self.append_to_switch_header = False
+
+        self.fixRegs(current_main_reg, switch_first_reg, switch_last_reg)
+        self.appendText(self.switch_header_txt[self.switchdepth])
+        self.appendText(self.switch_body_txt[self.switchdepth])
+        self.appendText(end_txt)
+        self.switchdepth -= 1
+
+    def fixRegs(self, current_main_reg, switch_first_reg, switch_last_reg):
+        #print(current_main_reg, switch_first_reg, switch_last_reg)
+        n_ops = current_main_reg - switch_first_reg
+        obj = {}
+        for i in range(n_ops):
+            aim = switch_first_reg + i
+            repl = switch_last_reg + i
+            obj[str(aim)] = str(repl)
+        if (obj == {}):
+            #No fixing necessary
+            return
+        new_str = re.sub("|".join(obj), lambda x: obj[x.group(0)], self.switch_body_txt[self.switchdepth])
+        self.switch_body_txt[self.switchdepth] = new_str
+

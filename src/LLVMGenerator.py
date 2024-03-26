@@ -50,11 +50,17 @@ class LLVMGenerator:
         #Allowed number types
         self.number_types = ['i32','double']
 
+        #Used to find out whether array index value is currently on stack
+        #Helps avoid popping from empty or popping other values
         self.arr_idx_depth = 0
 
+        #Structures data object
         self.structData = {}
 
-        self.func_return_to_stack = True
+        #Switch counter to get ids
+        self.switchcounter = 0
+        #Switch data array
+        self.switchdata = [-1]
     
     def increaseIndexDepth(self):
         self.arr_idx_depth = self.arr_idx_depth + 1
@@ -62,9 +68,12 @@ class LLVMGenerator:
     def incLine(self, lc):
         self.lc = lc
 
-    def preventCallPushToStack(self):
-        self.func_return_to_stack = False  
-    
+    def printRegStack(self):
+        print(self.regStack)
+
+    def popStack(self):
+        self.regStack.pop()
+
     def nextReg(self):
         regc = self.regc[self.func_depth]
         self.regc[self.func_depth] += 1
@@ -116,7 +125,8 @@ class LLVMGenerator:
         
         if (arr):
             if (self.func_depth>0):
-                self.raiseException("Cannot declare arrays in functions")
+                pass
+                #self.raiseException("Cannot declare arrays in functions")
             elem_dtype = dtype
             dtype = f"[{size} x {dtype}]"
             gval = 'zeroinitializer'
@@ -468,10 +478,7 @@ class LLVMGenerator:
                 self.raiseException(f"Cannot print entire structure")
             case _:
                 self.raiseException(f"Unknown type {dtype}")
-        if (self.func_return_to_stack):
-            self.regStack.append(('i32',0))
-        else:
-            self.func_return_to_stack = True
+        self.regStack.append(('i32',0))
         return txt
     
     def generateRead(self, target, read_double=False):
@@ -490,10 +497,7 @@ class LLVMGenerator:
                 self.sendWarning(f"Using read (reads double) to assign to type {targetdtype}")
             txt = f"\t{regc} = call i32 (ptr, ...) @scanf(ptr noundef @.str.3, ptr noundef {data['reg']})\n"
         data['init'] = True
-        if (self.func_return_to_stack):
-            self.regStack.append(('i32',0))
-        else:
-            self.func_return_to_stack = True
+        self.regStack.append(('i32',0))
         return txt
 
     def generateFooter(self):
@@ -797,7 +801,11 @@ class LLVMGenerator:
         txt = ""
         if ('[]' in dtype):
             #Get pointer
-            txt += self.generateLoadArrayElemPtr(dtype, reg)
+            try:
+                txt += self.generateLoadArrayElemPtr(dtype, reg)
+            except IndexError as e:
+                self.raiseException("Cannot return entire array")
+            
             dtype, el_reg = self.regStack.pop()
             reg = self.nextReg()
             #Load value
@@ -879,10 +887,8 @@ class LLVMGenerator:
         else:
             txt = f"\t{regc} = call {rettype} @{fname}("
         
-        if self.func_return_to_stack:
-            self.regStack.append((rettype, regc))
-        else:
-            self.func_return_to_stack = True
+
+        self.regStack.append((rettype, regc))
         #Args
         
         txt += ', '.join(call_arg_list)
@@ -964,3 +970,104 @@ class LLVMGenerator:
         #Converting last loaded number to negative
         (dtype, regc) = self.regStack.pop()
         self.regStack.append((dtype, '-'+regc))
+
+    
+    def generateEnterSwitchbody(self, case_count):
+        (switchdtype, switchreg) = self.regStack.pop()
+        #Rolling registers
+        regstart = self.regc[self.func_depth]
+
+        self.switchcounter = self.switchcounter + 1
+        self.switchdata.append({'switchdtype': switchdtype, 'switchreg': switchreg, 'switchvals' : [], "current_reg": regstart, "firstreg":regstart})
+
+
+    def generateEnterCaseblock(self):
+        switch_id = self.switchcounter
+        case_number = str(switch_id) + "_" + str(len(self.switchdata[switch_id]['switchvals']))
+        label = "case" + case_number
+        txt = f"{label}:\n"
+        return txt
+    
+    def generateEnterCase_value(self):
+        switch_id = self.switchcounter
+
+        #Set current reg to continue switch header
+        current_reg = self.switchdata[switch_id]['current_reg']
+        self.continue_reg = self.regc[self.func_depth]
+        self.regc[self.func_depth] = current_reg
+
+    def generateExitCase_value(self):
+        switch_id = self.switchcounter
+        (valdtype, valregc) = self.regStack.pop()
+        self.switchdata[switch_id]['switchvals'].append((valdtype,valregc))
+
+        #Save current reg to use later
+        self.switchdata[switch_id]['current_reg'] = self.regc[self.func_depth] 
+        #Set main reg to remembered value
+        #Reg order is most important, its values will be later fixed using fixRegs()
+        self.regc[self.func_depth] = self.continue_reg
+
+        
+    
+    def generateExitCaseblock(self):
+        switch_id = self.switchcounter
+        label = "switchend" + str(switch_id)
+        txt = f"\tbr label %{label}\n"
+        return txt
+    
+    def generateEnterDefaultblock(self):
+        switch_id = self.switchcounter
+        label = "default" + str(switch_id)
+        txt = f"{label}:\n"
+        return txt
+    
+    def generateExitDefaultblock(self):
+        switch_id = self.switchcounter
+        end_label = "switchend" + str(switch_id)
+        txt = f"\tbr label %{end_label}\n"
+        return txt
+    
+    def generateExitSwitchbody(self):
+        switch_id = self.switchcounter
+        switchdata = self.switchdata[switch_id]
+        switchvals = switchdata['switchvals']
+        switchdtype = switchdata['switchdtype']
+        switchreg = switchdata['switchreg']
+        switchregstart = switchdata['current_reg']
+
+        txt = ""
+        case_id = 0
+
+        current_main_reg = self.regc[self.func_depth]
+        switch_first_reg = self.switchdata[switch_id]['firstreg']
+
+        self.regc[self.func_depth] = switchregstart
+
+        for pair in switchvals:
+            #%8 = icmp eq i32 %7, 5
+	        #br i1 %8, label %ifblock1, label %exitif1
+            casedtype, casereg = pair
+            if (casedtype != switchdtype):
+                self.raiseException(f"Cannot compare value type {casedtype} to switch value type {switchdtype}")
+
+            regc = self.nextReg()
+            txt += f"\t{regc} = icmp eq {switchdtype} {switchreg}, {casereg}\n"
+            label = "case" + str(switch_id) + "_" + str(case_id)
+            continue_label = "continue" + str(switch_id) + "_" + str(case_id)
+            txt += f"\tbr i1 {regc}, label %{label}, label %{continue_label}\n"
+            txt += f"{continue_label}:\n"
+            case_id += 1
+        def_label = "default" + str(switch_id)
+        txt += f"\tbr label %{def_label}\n"
+
+        end_label = "switchend" + str(switch_id)
+        end_txt = f"{end_label}:\n"
+        
+        switch_last_reg = self.regc[self.func_depth]
+
+        n_ops = current_main_reg - switch_first_reg
+        self.regc[self.func_depth] = switch_last_reg + n_ops
+
+        return txt, end_txt, current_main_reg, switch_first_reg, switch_last_reg
+            
+        

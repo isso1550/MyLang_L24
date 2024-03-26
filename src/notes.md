@@ -1,4 +1,4 @@
-# Current Version: 0.7
+# Current Version: 0.8
 
 # V-List
 * 0.1 Declaration, assignment, print, expression evaluation (+,*,())
@@ -12,13 +12,14 @@
 * 0.5 Arrays, can't declare arrays in functions, arrays get modified in function when passed as args, getting array values, arrays as args to functions, can't return arrays from functions, return array elements, assign entire array, some syntax error exceptions, removing useless comments, split assigments to classic and array, function definition and declaration grammar exceptions syntax errors, next somewhat serious program! (selection sort + pick_min), test 15-17, test 12 fixed types
 * 0.6 Structures, declare struct, assign to struct, assign to struct fields, fields type check, pass struct as argument, global structures, use struct values in expressions, test18 test19
 * 0.7 read user input, read int, read double, warnings when incorrect type, exception when reading bool, disable entire array assigments, can't print struct, call g4 changes, func return value push to stack prevention, sendWarning func, test20
+* 0.8 switchcase, collect body and header -> combine intro final text, no nested switchcase, basic switch errors, fix register order, declare arrays in functions, fixed return val push to stack preventions (didn't work with nested calls print(f4(a)==0)) -> now uses pop when call is one line on exit
 
 # TODO
 * tables (done?)
 * (optional) short circuit boolean
 * struct (done?)
-* read user input
-* switch case?
+* read user input (done)
+* switch case (done?)
 * verify errors!
 * clean up useless code after disabling struct as possible return
 
@@ -34,19 +35,22 @@
 * cannot declare arrays in functions that call other functions, to make things easier you can't declare arrays inside functions. The requirement to use memcpy makes making it possible really difficult.
 * functions cannot return structures, to modify them use globals
 * cannot declare function using global vars before declaring used global vars
+* cannot use nested switchcases
 
 # Limitations
 * no auto conversions from numbers to double/int, when initializing variable you must ensure they digit is in correct type:
     * double a = 2; WRONG!
     * double a = 2.0; correct!
-* cannot declare functions nor arrays inside functions
+* cannot declare functions nor arrays inside functions -> fixed
     * declaring arrays inside functions only breaks the program if that function contains calls to another functions (not well tested, might be other causes too), but locking declaration possibility entirely makes everything simplier for both program and user who doesn't have to consider whether he can or can't do it
 * cannot call function before its definition
 * functions cannot return structs, to modify struct use global variables
 * cannot declare functions using global variables before declaring these global variables
 * only "syntax error" when user attempts to declare struct with assignment
 * can't assign multiple values at once to structure
-
+* cannot use nested switchcases
+* not 100% sure switchcase reg fix works
+* functions cannot return arrays
 
 # Testers
 * Test1
@@ -111,3 +115,9 @@
 * Test20
     * Test reading user input
     * Results based on input: input 2xint , 2xdouble -> print sum of ints, sum of doubles -> input 1xint 1xdouble -> print int value, double value
+* Test21
+    * Basic switchcases
+    * Results: all 1
+* Test22
+    * Verify fixed array declarations in functions
+    * Results: all 1 (4 prints)
