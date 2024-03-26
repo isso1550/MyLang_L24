@@ -121,10 +121,21 @@ class ListenerInterp(ExprListener):
         txt = self.generator.generateStructAssigment(vname, field_name)
         self.appendText(txt)
 
-    def exitPrint(self, ctx: ExprParser.PrintContext):
+    def exitCall_print(self, ctx: ExprParser.Call_printContext):
         txt = self.generator.generatePrint()
         self.appendText(txt)
-    
+
+    def exitCall_read(self, ctx: ExprParser.Call_readContext, read_double = False):
+        if (ctx.getChildCount() <= 3):
+            self.generator.raiseException("Read function requires 1 argument: target.")
+        elif (ctx.getChildCount() > 4):
+            self.generator.raiseException("Too many arguments passed to read(arg) call")
+        target = ctx.getChild(2).getText()
+        txt = self.generator.generateRead(target, read_double)
+        self.appendText(txt)
+
+    def exitCall_read_double(self, ctx: ExprParser.Call_read_doubleContext):
+        self.exitCall_read(ctx, read_double=True)
 
     def exitValue_id(self, ctx: ExprParser.Value_idContext):
         vname = ctx.getText()
@@ -272,10 +283,10 @@ class ListenerInterp(ExprListener):
         txt = self.generator.generateReturn()
         self.appendText(txt)
 
-    def enterCall(self, ctx: ExprParser.CallContext):
+    def enterCall_func(self, ctx: ExprParser.Call_funcContext):
         self.generator.generateEnterCall(ctx.getChild(0).getText())
 
-    def exitCall(self, ctx: ExprParser.CallContext):
+    def exitCall_func(self, ctx: ExprParser.Call_funcContext):
         txt = self.generator.generateExitCall()
         self.appendText(txt)
 
@@ -284,6 +295,9 @@ class ListenerInterp(ExprListener):
 
     def enterLine(self, ctx: ExprParser.LineContext):
         self.generator.incLine(ctx.start.line)
+        if type(ctx.getChild(0)) in [ExprParser.Call_funcContext, ExprParser.Call_printContext]:
+            #Don't push return value to stack if user doesn't care about return
+            self.generator.preventCallPushToStack()
 
     def enterGlobal_declaration_error(self, ctx: ExprParser.Global_declaration_errorContext):
         self.generator.raiseException(f"Global variable declaration without type {ctx.getChild(1).getText()}")

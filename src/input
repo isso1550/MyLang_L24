@@ -1,8 +1,7 @@
-struct myType {
+struct mul {
     int a;
-    int b;
 };
 
-struct myType g;
-g.a = 2;
-print(g.a > 0);
+struct mul a;
+int[2] b;
+print(b);

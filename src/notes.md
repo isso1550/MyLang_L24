@@ -1,4 +1,4 @@
-# Current Version: 0.6
+# Current Version: 0.7
 
 # V-List
 * 0.1 Declaration, assignment, print, expression evaluation (+,*,())
@@ -10,7 +10,8 @@
     * 0.4.2
         better function and variable declaration exceptions associated with their names, allow functions without commands in block, handling function def syntax errors, cannot create variables and functions with same names, control number of arguments passed to function
 * 0.5 Arrays, can't declare arrays in functions, arrays get modified in function when passed as args, getting array values, arrays as args to functions, can't return arrays from functions, return array elements, assign entire array, some syntax error exceptions, removing useless comments, split assigments to classic and array, function definition and declaration grammar exceptions syntax errors, next somewhat serious program! (selection sort + pick_min), test 15-17, test 12 fixed types
-* 0.6 Structures, declare struct, assign to struct, assign to struct fields, fields type check, pass struct as argument, global structures, use struct values in expressions
+* 0.6 Structures, declare struct, assign to struct, assign to struct fields, fields type check, pass struct as argument, global structures, use struct values in expressions, test18 test19
+* 0.7 read user input, read int, read double, warnings when incorrect type, exception when reading bool, disable entire array assigments, can't print struct, call g4 changes, func return value push to stack prevention, sendWarning func, test20
 
 # TODO
 * tables (done?)
@@ -107,3 +108,6 @@
 * Test19
     * More advanced structure operations
     * Results: almost all 1, second to last should be -1
+* Test20
+    * Test reading user input
+    * Results based on input: input 2xint , 2xdouble -> print sum of ints, sum of doubles -> input 1xint 1xdouble -> print int value, double value

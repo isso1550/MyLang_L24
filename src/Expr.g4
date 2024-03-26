@@ -14,10 +14,10 @@ line:
     | whileloop
     | function_definition
     | assignment ';'
-    | print ';'
-    | expression ';'
-    | return ';'
     | call ';'
+    | return ';'
+    | expression ';'
+    
     
     ;
 
@@ -39,7 +39,10 @@ global:
     ;
     
 call:
-    ID LPAREN call_args? RPAREN
+    ID LPAREN call_args? RPAREN #call_func
+    | 'print' LPAREN expression RPAREN #call_print
+    | 'read' LPAREN ID? RPAREN #call_read
+    | 'readd' LPAREN ID? RPAREN #call_read_double
     ;
     
 call_args:
@@ -139,9 +142,7 @@ assignment:
 struct_elem:
     ID '.' ID;
 
-print:
-    'print' LPAREN expression RPAREN
-    ;
+
 
 value:
     '~' value #value_negation

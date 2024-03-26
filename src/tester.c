@@ -1,9 +1,11 @@
 #include <stdio.h>
+#include <stdbool.h>
 
-struct myType {
-    int a;
-    int b;
-};
-struct myType s1;
+
+
+
 int main() {
+    int a[2] = {1,2};
+    int b[2];
+    b = a;
 }

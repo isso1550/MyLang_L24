@@ -53,6 +53,8 @@ class LLVMGenerator:
         self.arr_idx_depth = 0
 
         self.structData = {}
+
+        self.func_return_to_stack = True
     
     def increaseIndexDepth(self):
         self.arr_idx_depth = self.arr_idx_depth + 1
@@ -60,6 +62,9 @@ class LLVMGenerator:
     def incLine(self, lc):
         self.lc = lc
 
+    def preventCallPushToStack(self):
+        self.func_return_to_stack = False  
+    
     def nextReg(self):
         regc = self.regc[self.func_depth]
         self.regc[self.func_depth] += 1
@@ -68,11 +73,19 @@ class LLVMGenerator:
     def raiseException(self, message):
         raise Exception(message + f" : {self.lc}")
 
+    def sendWarning(self, message):
+        WARNING = '\033[93m'
+        ENDC = '\033[0m'
+        print(WARNING + "WARNING: " + message + f" : {self.lc}" + ENDC)
+
     def generateHeader(self):
         txt = "target triple = \"x86_64-w64-windows-gnu\"\n"
         txt += "@.str = private unnamed_addr constant [4 x i8] c\"\\0A%d\\00\", align 1\n"
         txt += "@.str.1 = private unnamed_addr constant [4 x i8] c\"\\0A%f\\00\", align 1\n"
+        txt += "@.str.2 = private unnamed_addr constant [3 x i8] c\"%d\\00\", align 1\n"
+        txt += "@.str.3 = private unnamed_addr constant [4 x i8] c\"%lf\\00\", align 1\n"
         txt += "declare dso_local i32 @printf(ptr noundef, ...) #1\n"
+        txt += "declare dso_local i32 @scanf(ptr noundef, ...) #1\n"
         main_start = "define dso_local i32 @main() #0 {\n"
         return txt, main_start
 
@@ -202,9 +215,14 @@ class LLVMGenerator:
 
         if '[]' in dtype:
             #Get pointer to element
-            txt = self.generateLoadArrayElemPtr(dtype, varreg)
-            (dtype, varreg) = self.regStack.pop()
-        
+            try:
+                txt = self.generateLoadArrayElemPtr(dtype, varreg)
+                (dtype, varreg) = self.regStack.pop()
+            except IndexError:
+                #Trying to assign array
+                self.raiseException("Cannot assign to entire array. Use brackets to initialize the entire array")
+                pass
+
         if (dtype != valdtype):
             if (valdtype == 'i64' and 'struct' in dtype):
                 #Special case: assigning structures
@@ -445,9 +463,37 @@ class LLVMGenerator:
                 txt += f"\t{regc} = call i32 (ptr, ...) @printf(ptr noundef @.str, {dtype} noundef {reg1})\n"
             case 'double':
                 txt = f"\t{regc} = call i32 (ptr, ...) @printf(ptr noundef @.str.1, {dtype} noundef {reg})\n"
+            case 'i64':
+                #Struct
+                self.raiseException(f"Cannot print entire structure")
             case _:
                 self.raiseException(f"Unknown type {dtype}")
-
+        if (self.func_return_to_stack):
+            self.regStack.append(('i32',0))
+        else:
+            self.func_return_to_stack = True
+        return txt
+    
+    def generateRead(self, target, read_double=False):
+        #%2 = call i32 (ptr, ...) @scanf(ptr noundef @.str, ptr noundef %1)
+        data = self.searchVarData(target)
+        regc = self.nextReg()
+        targetdtype = data['dtype']
+        if (targetdtype == 'i1'):
+            self.raiseException("Cannot read bool values. Use temporary int variable to read bool.")
+        if not read_double:
+            if targetdtype != 'i32':
+                self.sendWarning(f"Using read (reads int) to assign to type {targetdtype}")
+            txt = f"\t{regc} = call i32 (ptr, ...) @scanf(ptr noundef @.str.2, ptr noundef {data['reg']})\n"
+        else:
+            if targetdtype != 'double':
+                self.sendWarning(f"Using read (reads double) to assign to type {targetdtype}")
+            txt = f"\t{regc} = call i32 (ptr, ...) @scanf(ptr noundef @.str.3, ptr noundef {data['reg']})\n"
+        data['init'] = True
+        if (self.func_return_to_stack):
+            self.regStack.append(('i32',0))
+        else:
+            self.func_return_to_stack = True
         return txt
 
     def generateFooter(self):
@@ -815,11 +861,16 @@ class LLVMGenerator:
         call_arg_n, calledFunc, call_arg_list = self.callStack.pop()
         #Start
         fname = calledFunc
+
+        
         try:
             data = self.funcData[fname]
         except:
             raise Exception(f"Unknown function {fname}: {self.lc}")
         rettype = data['rettype']
+
+        if (len(call_arg_list) < len(self.funcData[fname]['argtypes'])):
+            self.raiseException(f"Not enough arguments passed to {fname} call. Got {len(call_arg_list)} Expected {len(self.funcData[fname]['argtypes'])}")
         
         regc = self.nextReg()
 
@@ -827,11 +878,13 @@ class LLVMGenerator:
             txt = f"\t{regc} = call i64 @{fname}("
         else:
             txt = f"\t{regc} = call {rettype} @{fname}("
-        self.regStack.append((rettype, regc))
+        
+        if self.func_return_to_stack:
+            self.regStack.append((rettype, regc))
+        else:
+            self.func_return_to_stack = True
         #Args
-        if (len(call_arg_list) < len(self.funcData[fname]['argtypes'])):
-            self.raiseException(f"Not enough arguments passed to {fname} call. Got {len(call_arg_list)} Expected {len(self.funcData[fname]['argtypes'])}")
-
+        
         txt += ', '.join(call_arg_list)
         #End
         txt += ')\n'

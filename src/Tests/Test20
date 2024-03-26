@@ -1,0 +1,33 @@
+struct myRead {
+    int a;
+    double b;
+};
+
+function int read_user_input() {
+    int a;
+    read(a);
+    return a;
+}
+
+function double read_user_input_double(){
+    double a;
+    readd(a);
+    return a;
+}
+
+int[2] a;
+a[0] = read_user_input();
+a[1] = read_user_input();
+
+double[2] b;
+b[0] = read_user_input_double();
+b[1] = read_user_input_double();
+
+print(a[0]+a[1]);
+print(b[0]+b[1]);
+
+struct myRead c;
+c.a = read_user_input();
+c.b = read_user_input_double();
+print(c.a);
+print(c.b);
