@@ -38,7 +38,7 @@ class ListenerInterp(ExprListener):
     def exitProgram(self, ctx: ExprParser.ProgramContext):
         header, main_start = self.generator.generateHeader()
         self.txt = header + self.pre_main_txt + main_start + self.txt + self.generator.generateFooter()
-        with open("myllvm.ll",'w') as f:
+        with open("mylang.ll",'w') as f:
             f.write(self.txt)
             f.close()
  
@@ -215,11 +215,11 @@ class ListenerInterp(ExprListener):
                 case '|' | '&' | '^':
                     txt = self.generator.generateBoolBinary(op)
                 case _:
-                    raise Exception(f"Unknown operation {op}")
+                    self.generator.raiseException(f"Unknown operation {op}")
             self.appendText(txt)
         elif (ctx.getChildCount() > 1):
             if (ctx.getChild(0).getText() != '~'):
-                raise Exception(f"Unknown situation {ctx.getText()}")
+                self.generator.raiseException(f"Unknown situation {ctx.getText()}")
             txt = self.generator.generateNegation()
             self.appendText(txt)
         else:
@@ -318,7 +318,7 @@ class ListenerInterp(ExprListener):
     def enterError_func_def_no_type(self, ctx: ExprParser.Error_func_def_no_typeContext):
         self.generator.raiseException(f"Function {ctx.getChild(1).getText()} error missing return type")
     def enterError_func_return_arr(self, ctx: ExprParser.Error_func_return_arrContext):
-        self.generator.raiseException(f"Function cannot return array type. Use global variables to modify.")
+        self.generator.raiseException(f"Function cannot return array type.")
     
     def enterIfblock(self, ctx: ExprParser.IfblockContext):
         txt = self.generator.generateEnterIf()

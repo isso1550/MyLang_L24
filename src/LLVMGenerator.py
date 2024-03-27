@@ -80,7 +80,7 @@ class LLVMGenerator:
         return '%'+ str(regc)
     
     def raiseException(self, message):
-        raise Exception(message + f" : {self.lc}")
+        raise Exception(message + f" : line {self.lc}")
 
     def sendWarning(self, message):
         WARNING = '\033[93m'
@@ -108,7 +108,7 @@ class LLVMGenerator:
             case 'double':
                 dtype = 'double'
             case _:
-                raise Exception(f"Unknown var type {dtype}")
+                self.raiseException(f"Unknown var type {dtype}")
 
         #Var already declared as local
         if vname in self.varData[self.func_depth].keys():
@@ -133,7 +133,7 @@ class LLVMGenerator:
         
         if (g):
             if self.func_depth > 0:
-                self.raiseException(f"Cannot declare global variable {vname} inside a function: {self.lc}")
+                self.raiseException(f"Cannot declare global variable {vname} inside a function")
             #@x = dso_local global i32 0, align 4
             regc = '@' + vname
             if gval == None:
@@ -238,7 +238,7 @@ class LLVMGenerator:
                 #Special case: assigning structures
                 pass
             else:
-                raise Exception(f"Cannot assign {valdtype} to {dtype} {vname}: {self.lc}")
+                self.raiseException(f"Cannot assign {valdtype} to {dtype} {vname}")
 
         if 'struct.' in dtype:
             dtype = 'i64'
@@ -257,9 +257,9 @@ class LLVMGenerator:
         elem_dtype = data['dtype'][:-2]
 
         if (len < int(data['size'])):
-            self.raiseException(f"Not enough elements to initialize array")
+            self.raiseException(f"Not enough elements to assing to array")
         if (len > int(data['size'])):
-            self.raiseException(f"Too many values in array initialization")
+            self.raiseException(f"Too many values in array assignment")
             
         for i in range(len-1, -1, -1):
             
@@ -320,7 +320,7 @@ class LLVMGenerator:
     def generateLoadStructFieldPointer(self, stype, sreg, index):
         #%2 = getelementptr inbounds %struct.myType, ptr %1, i32 0, i32 0
         regc = self.nextReg()
-        txt = f"\t{regc} = getelementptr inbounds %struct.{stype}, ptr {sreg}, i32 {index}\n"
+        txt = f"\t{regc} = getelementptr inbounds %struct.{stype}, ptr {sreg}, i32 0, i32 {index}\n"
         self.regStack.append(('struct_field_ptr', regc))
         return txt
     
@@ -331,15 +331,15 @@ class LLVMGenerator:
             try:
                 data = self.varData[0][vname]
                 if data['global']==False:
-                    raise Exception(f"Unknown variable {vname}: {self.lc}")
+                    self.raiseException(f"Unknown variable {vname}")
             except Exception as e:
-                raise Exception(f"Unknown variable {vname}")
+                self.raiseException(f"Unknown variable {vname}")
         dtype = data['dtype']
         varreg = data['reg']
         varinit = data['init']
         g = data['global']
         if not varinit:
-            raise Exception(f"Trying to load uninitialized variable {vname}: {self.lc}")
+            self.raiseException(f"Trying to load uninitialized variable {vname}")
 
         arr = data['array']
         txt = ""
@@ -539,7 +539,7 @@ class LLVMGenerator:
         #    dtype1 = 'double' if '.' in regc1 else 'i32'
 
         if dtype1 != dtype2:
-            raise Exception(f"Cannot perform operation '{op}' on different types {dtype1} {dtype2}: {self.lc}")
+            self.raiseException(f"Cannot perform operation '{op}' on different types {dtype1} {dtype2}")
 
         return regc, dtype2, regc2, dtype1, regc1   
 
@@ -622,7 +622,7 @@ class LLVMGenerator:
                 op = 'xor'
             
             case _:
-                raise Exception("Unknown compare operator")
+                self.raiseException("Unknown boolean operator")
 
         txt = f"\t{regc} = {op} {dtype1} {regc1}, {regc2}\n"
 
@@ -635,7 +635,7 @@ class LLVMGenerator:
 
         dtype1, regc1 = self.regStack.pop()
         if (dtype1 != 'i1'):
-            raise Exception(f"Cannot negate non-bool values {dtype1, regc1}")
+            self.raiseException(f"Cannot negate non-bool values {dtype1, regc1}")
         txt = f"\t{regc} = add nsw i1 {regc1}, 1\n"
         self.regStack.append((dtype1, regc))
         return txt
@@ -648,7 +648,7 @@ class LLVMGenerator:
             self.raiseException(f"Variable or function with name {fname} already exists")
 
         if self.func_depth > 0:
-            raise Exception(f"Cannot create nested functions: {fname}")
+            self.raiseException(f"Cannot create nested functions: {fname}")
 
         retstruct = False
         match rettype:
@@ -668,7 +668,7 @@ class LLVMGenerator:
                     else:
                         pass
                 else:        
-                    raise Exception(f"Unknown return type for function {fname} : {rettype}")
+                    self.raiseException(f"Unknown return type for function {fname} : {rettype}")
 
         if retstruct:
             txt = f"define dso_local i64 @{fname}("
@@ -728,10 +728,10 @@ class LLVMGenerator:
             elif (dtype =='double'):
                 dtype = 'double'
             else:
-                raise Exception(f"Unknown var type {dtype}")
+                self.raiseException(f"Unknown var type {dtype}")
             
         if vname in self.varData[self.func_depth].keys():
-            raise Exception(f"Already declared {vname}")
+            self.raiseException(f"Already declared {vname}")
         #Add
         
 
@@ -820,7 +820,7 @@ class LLVMGenerator:
             if (dtype == 'i64') and ('struct.' in expected_ret):
                 dtype = 'i64'
             else:
-                self.raiseException(f"Function must return type of its declaration got: {dtype} expected {expected_ret}")
+                self.raiseException(f"Function must return type specified in declaration got: {dtype} expected {expected_ret}")
         
     
         txt += f'\tret {dtype} {reg}\n'
@@ -852,7 +852,7 @@ class LLVMGenerator:
             elif (dtype == "i64" and "struct." in expected_type):
                 pass
             else:
-                raise Exception(f"Wrong argument type {dtype} expected {expected_type} function {calledFunc}: {self.lc}")
+                self.raiseException(f"Wrong argument type {dtype} expected {expected_type} function {calledFunc}")
         
         if ('[]' in dtype):
             dtype = "ptr noundef"
@@ -874,7 +874,7 @@ class LLVMGenerator:
         try:
             data = self.funcData[fname]
         except:
-            raise Exception(f"Unknown function {fname}: {self.lc}")
+            self.raiseException(f"Unknown function {fname}")
         rettype = data['rettype']
 
         if (len(call_arg_list) < len(self.funcData[fname]['argtypes'])):
@@ -1048,7 +1048,7 @@ class LLVMGenerator:
 	        #br i1 %8, label %ifblock1, label %exitif1
             casedtype, casereg = pair
             if (casedtype != switchdtype):
-                self.raiseException(f"Cannot compare value type {casedtype} to switch value type {switchdtype}")
+                self.raiseException(f"Cannot compare case value type {casedtype} to switch value type {switchdtype}")
 
             regc = self.nextReg()
             txt += f"\t{regc} = icmp eq {switchdtype} {switchreg}, {casereg}\n"
