@@ -798,7 +798,7 @@ Prints array from first line in ascending order.
 
 <!-- TOC --><a name="additional-code-snippets"></a>
 ### Additional code snippets
-Check out /src/Tests folder on github to see more.
+Check out /src/Tests folder on github to see more. All tests are described in /src/notes.md.
 
 <!-- TOC --><a name="resources-and-used-programs"></a>
 ## Resources and used programs
