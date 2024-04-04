@@ -1,9 +1,3 @@
-int a;
+int a=3;
 //xd
-//xd2
-
-//xd3
-
-//xd64
-
 print(a);

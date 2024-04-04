@@ -6,6 +6,7 @@ from ListenerInterp import ListenerInterp
 
 def main(argv):
     input = FileStream(argv[1])
+    target = argv[2]
     lexer = ExprLexer(input)
     stream = CommonTokenStream(lexer)
     parser = ExprParser(stream)
@@ -14,9 +15,10 @@ def main(argv):
     if parser.getNumberOfSyntaxErrors() > 0:
         print("syntax errors")
     else:
-        print("___________________________SUCCESFULLY GENERATED IR")
         linterp = ListenerInterp()
+        linterp.setTarget(target)
         walker = ParseTreeWalker()
         walker.walk(linterp, tree)
+        print("Generated IR")
 if __name__ == '__main__':
     main(sys.argv)

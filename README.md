@@ -73,15 +73,11 @@ To see all functionalities without reading about them visit [Full list of functi
 
 <!-- TOC --><a name="compiling-input-to-exe"></a>
 ## Compiling input to exe
-System architecture is specified in LLVMGenerator. If user works on another system he is required to change it accordingly. One can find what target triple is necessary by using clang -S -emit-llvm tester.c and reading it from created tester.ll.
-
-`target triple = "x86_64-w64-windows-gnu"`
-
-To compile and run program, paste it's code into file called "input" in the same directory as other programs and run script called "compiler.bat". Result will be available as mylang.exe and will run automatically or errors will be printed in the console.
+To compile and run program, paste it's code into file called "input" in the same directory as other programs and run script called "Compiler2.bat". Result will be available as mylang.exe and will run automatically or errors will be printed in the console. You can also compile any other file by providing it's name as first argument in batch script call.
 
 To read IR code view "mylang.ll" and "optimized.ll" files.
 
-To clean compiler files and .ll you can use "clean.bat" script.
+To clean compiler files and you can use "clean.bat" script.
 
 <!-- TOC --><a name="general-syntax-info"></a>
 ## General syntax info
@@ -743,7 +739,7 @@ while (x <= upper){
 sum = step * sum;
 print(sum);
 ```
-With default settings return 186.667...
+With default settings returns 186.667...
 
 <!-- TOC --><a name="selection-sort"></a>
 ### Selection sort

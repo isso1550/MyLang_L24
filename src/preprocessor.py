@@ -1,5 +1,12 @@
+import sys
+
+input_file = "input"
+if (len(sys.argv)>1):
+    input_file = sys.argv[1]
+
+
 lines = None
-with open('input','r') as f:
+with open(input_file,'r') as f:
     lines = f.readlines()
     f.close()
 if lines==None:

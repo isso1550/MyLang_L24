@@ -24,6 +24,8 @@ class ListenerInterp(ExprListener):
         self.result = {}
 
         self.exprStack = deque() 
+    def setTarget(self, target):
+        self.generator.setTarget(target)
 
     def appendText(self, txt, append_to_premain=False):
         if (self.append_to_switch_header):

@@ -61,6 +61,9 @@ class LLVMGenerator:
         self.switchcounter = 0
         #Switch data array
         self.switchdata = [-1]
+
+        #Default target triple
+        self.target = "x86_64-w64-windows-gnu"
     
     def increaseIndexDepth(self):
         self.arr_idx_depth = self.arr_idx_depth + 1
@@ -86,9 +89,12 @@ class LLVMGenerator:
         WARNING = '\033[93m'
         ENDC = '\033[0m'
         print(WARNING + "WARNING: " + message + f" : {self.lc}" + ENDC)
+    
+    def setTarget(self, target):
+        self.target = target
 
     def generateHeader(self):
-        txt = "target triple = \"x86_64-w64-windows-gnu\"\n"
+        txt = f"target triple = \"{self.target}\"\n"
         txt += "@.str = private unnamed_addr constant [4 x i8] c\"\\0A%d\\00\", align 1\n"
         txt += "@.str.1 = private unnamed_addr constant [4 x i8] c\"\\0A%f\\00\", align 1\n"
         txt += "@.str.2 = private unnamed_addr constant [3 x i8] c\"%d\\00\", align 1\n"
