@@ -83,6 +83,8 @@ class LLVMGenerator:
         return '%'+ str(regc)
     
     def raiseException(self, message):
+        message = message.replace("i32",'int(/i32)')
+        message = message.replace("i1","bool(/i1)")
         raise Exception(message + f" : line {self.lc}")
 
     def sendWarning(self, message):

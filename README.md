@@ -615,6 +615,7 @@ print(a);   //prints 3
 
 <!-- TOC --><a name="full-list-of-functionalities"></a>
 ## Full list of functionalities
+* comments
 * declaring variables with or without assignment
 * assigning values to variables
 * printing variables
@@ -626,7 +627,7 @@ print(a);   //prints 3
 * functions with or without arguments
 * calls within calls, using calls as values
 * global variables
-* if blocks, if-else blocks
+* if blocks, if-else blocks, nested if blocks
 * while loops, nested while loops
 * arrays, read and modify each element, assign entire array as once
 * structures

@@ -1,4 +1,4 @@
-# Current Version: 0.9
+# Current Version: 1.0
 
 # V-List
 * 0.1 Declaration, assignment, print, expression evaluation (+,*,())
@@ -14,6 +14,7 @@
 * 0.7 read user input, read int, read double, warnings when incorrect type, exception when reading bool, disable entire array assigments, can't print struct, call g4 changes, func return value push to stack prevention, sendWarning func, test20
 * 0.8 switchcase, collect body and header -> combine intro final text, no nested switchcase, basic switch errors, fix register order, declare arrays in functions, fixed return val push to stack preventions (didn't work with nested calls print(f4(a)==0)) -> now uses pop when call is one line on exit
 * 0.9 mylang guide, compile script edits, comments, preprocessor, llvm IR optimize, fixing exceptions to use generator function 
+* 1.0 compiler2, grade 31/30 :)
 
 # TODO
 * tables (done?)

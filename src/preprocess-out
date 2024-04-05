@@ -1,3 +1,15 @@
-int a=3;
 
-print(a);
+
+
+
+double z;
+z = 7.1;
+switch z>6.67 {
+    case true {
+        z = 1.0;
+    }
+    default {
+        z = 5.0;
+    }
+}
+print(z);
